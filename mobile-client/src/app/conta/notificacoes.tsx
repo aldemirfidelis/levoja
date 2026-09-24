@@ -1,14 +1,6 @@
-import { router } from 'expo-router';
 import { NotificationsScreen } from '@levoja/mobile-kit';
+import { openFromNotification } from '@/lib/navigation';
 
 export default function Notifications() {
-  return (
-    <NotificationsScreen
-      onOpen={(notification) => {
-        const data = notification.data ?? {};
-        if (typeof data.orderId === 'string') router.push(`/pedido/${data.orderId}`);
-        else if (typeof data.deliveryId === 'string') router.push(`/entrega/${data.deliveryId}`);
-      }}
-    />
-  );
+  return <NotificationsScreen onOpen={(notification) => openFromNotification(notification.data ?? {})} />;
 }

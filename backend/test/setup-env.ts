@@ -28,5 +28,8 @@ Object.assign(process.env, {
   GEOCODER: 'none',
   PAYMENT_GATEWAY: 'sandbox',
   PAYOUT_PROVIDER: 'sandbox',
+  // Testes nunca chamam o provedor de IA (o caminho com IA usa um provedor simulado).
+  AI_PROVIDER: 'none',
 });
+delete process.env.ANTHROPIC_API_KEY;
 delete process.env.REDIS_URL;

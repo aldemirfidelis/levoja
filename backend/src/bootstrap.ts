@@ -28,7 +28,9 @@ export function configureApp(app: INestApplication): void {
   app.use((request: any, response: any, next: () => void) => {
     const requestId = (request.headers['x-request-id'] as string) || request.id || randomUUID();
     response.setHeader('X-Request-Id', requestId);
-    RequestContext.run({ requestId, ip: request.ip, userAgent: request.headers['user-agent']?.slice(0, 300) }, next);
+    const device = request.headers['x-device-id'];
+    const deviceId = typeof device === 'string' && /^[A-Za-z0-9_-]{16,128}$/.test(device) ? device : undefined;
+    RequestContext.run({ requestId, ip: request.ip, userAgent: request.headers['user-agent']?.slice(0, 300), deviceId }, next);
   });
 
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
@@ -36,7 +38,7 @@ export function configureApp(app: INestApplication): void {
   app.enableCors({
     origin: config.corsOrigins,
     credentials: true,
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-Tenant', 'X-Request-Id'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Tenant', 'X-Request-Id', 'X-Device-Id', 'X-Api-Key'],
     exposedHeaders: ['X-Request-Id', 'Content-Disposition'],
   });
 

@@ -63,13 +63,14 @@ export class NotificationsService implements OnModuleInit {
     this.jobs.register<DeliveryJob>('notifications.deliver', (job) => this.deliver(job));
   }
 
-  async notify(input: NotifyInput): Promise<void> {
+  /** Retorna os canais efetivamente usados (marketing: apenas os com consentimento). */
+  async notify(input: NotifyInput): Promise<NotificationChannel[]> {
     const channels = input.channels ?? ['inapp', 'push'];
     const user = await this.prisma.user.findUnique({
       where: { id: input.userId },
       select: { id: true, tenantId: true, status: true, anonymizedAt: true },
     });
-    if (!user || user.anonymizedAt) return;
+    if (!user || user.anonymizedAt) return [];
 
     const allowed = input.category === 'marketing' ? await this.filterByConsent(user.id, channels) : channels;
 
@@ -101,6 +102,7 @@ export class NotificationsService implements OnModuleInit {
         ttlSeconds: input.ttlSeconds,
       });
     }
+    return allowed;
   }
 
   async notifyMany(userIds: string[], input: Omit<NotifyInput, 'userId'>): Promise<void> {

@@ -50,6 +50,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
       }
       if (profile.driverId) rooms.push(`driver:${profile.driverId}`);
       if (profile.permissions.includes('operations.view')) rooms.push(`ops:${profile.tenantId}`);
+      if (profile.permissions.includes('support.tickets.read')) rooms.push(`support:${profile.tenantId}`);
       await client.join(rooms);
       client.emit('ready', { rooms: rooms.length });
     } catch (error) {

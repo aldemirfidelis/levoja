@@ -20,3 +20,5 @@ export * from './ui/pix';
 export * from './ui/map';
 export * from './screens/auth';
 export * from './screens/account';
+export * from './screens/chat';
+export * from './screens/support';

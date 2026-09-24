@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider, router } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
@@ -24,6 +24,7 @@ import {
 import { DriverProvider } from '@/lib/driver';
 import { stopTracking } from '@/lib/location';
 import { outbox } from '@/lib/outbox';
+import { openFromNotification } from '@/lib/navigation';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -56,11 +57,7 @@ function LiveUpdates() {
     // Aprovação/suspensão do cadastro muda as telas disponíveis.
     if (notification.type.startsWith('driver.status')) void reload().catch(() => undefined);
   });
-  useNotificationTaps((data) => {
-    if (typeof data.deliveryId === 'string' && data.type !== 'delivery.offer') router.push(`/entrega/${data.deliveryId}`);
-    else if (data.type === 'delivery.offer') router.navigate('/');
-    else if (typeof data.withdrawalId === 'string') router.navigate('/ganhos');
-  });
+  useNotificationTaps((data) => openFromNotification(data));
   return null;
 }
 
@@ -93,6 +90,7 @@ function Root() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="entrega/[id]" options={{ title: 'Entrega' }} />
         <Stack.Screen name="comprovante/[id]" options={{ title: 'Concluir entrega', presentation: 'modal' }} />
+        <Stack.Screen name="conversa/[id]" options={{ title: 'Conversa' }} />
       </Stack.Protected>
       <Stack.Protected guard={signedIn && !driver}>
         <Stack.Screen name="ser-entregador" options={{ title: 'Seja entregador' }} />
@@ -105,6 +103,9 @@ function Root() {
         <Stack.Screen name="cadastro/veiculo" options={{ title: 'Veículo' }} />
         <Stack.Screen name="cadastro/dados" options={{ title: 'Dados pessoais' }} />
         <Stack.Screen name="conta/dados-bancarios" options={{ title: 'Chave PIX' }} />
+        <Stack.Screen name="ajuda/index" options={{ title: 'Meus chamados' }} />
+        <Stack.Screen name="ajuda/novo" options={{ title: 'Novo chamado', presentation: 'modal' }} />
+        <Stack.Screen name="ajuda/[id]" options={{ title: 'Chamado' }} />
       </Stack.Protected>
       <Stack.Protected guard={signedIn}>
         <Stack.Screen name="conta/perfil" options={{ title: 'Meus dados' }} />

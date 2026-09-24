@@ -14,8 +14,9 @@ import {
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
-import { CompanyPermission, CurrentUser, Public, RequirePermissions } from '../../common/decorators';
+import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { REVIEW_THEMES } from '@levoja/shared';
+import { AllowApiKey, CompanyPermission, CurrentUser, Public, RequirePermissions } from '../../common/decorators';
 import type { AuthUser } from '../../common/auth/auth-user';
 import { PaginationQueryDto } from '../../common/pagination';
 import { PrismaService } from '../../infra/prisma/prisma.service';
@@ -63,6 +64,8 @@ class TrackingQueryDto {
 
 class ReviewsAdminQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(5) maxRating?: number;
+  @ApiPropertyOptional({ enum: ['POSITIVE', 'NEUTRAL', 'NEGATIVE'] }) @IsOptional() @IsIn(['POSITIVE', 'NEUTRAL', 'NEGATIVE']) sentiment?: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
+  @ApiPropertyOptional({ enum: REVIEW_THEMES }) @IsOptional() @IsIn(REVIEW_THEMES) theme?: string;
 }
 
 class HideReviewDto {
@@ -298,12 +301,14 @@ export class CompanyDeliveriesController {
   ) {}
 
   @Post('quote')
+  @AllowApiKey()
   @CompanyPermission('company.deliveries.request')
   quote(@CurrentUser() user: AuthUser, @Param('companyId', ParseUUIDPipe) companyId: string, @Body() dto: DeliveryQuoteDto) {
     return this.deliveries.quoteView(user, dto, companyId);
   }
 
   @Post()
+  @AllowApiKey()
   @CompanyPermission('company.deliveries.request')
   @ApiOperation({ summary: 'Solicitar entrega avulsa (coleta padrão: endereço da empresa)' })
   async create(@CurrentUser() user: AuthUser, @Param('companyId', ParseUUIDPipe) companyId: string, @Body() dto: CreateDeliveryDto) {
@@ -312,18 +317,21 @@ export class CompanyDeliveriesController {
   }
 
   @Get()
+  @AllowApiKey()
   @CompanyPermission('company.orders.read', 'deliveries.read')
   list(@Param('companyId', ParseUUIDPipe) companyId: string, @Query() query: DeliveriesQueryDto) {
     return this.deliveries.listForCompany(companyId, query);
   }
 
   @Get(':id')
+  @AllowApiKey()
   @CompanyPermission('company.orders.read', 'deliveries.read')
   get(@Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string) {
     return this.deliveries.getForCompany(companyId, id);
   }
 
   @Post(':id/cancel')
+  @AllowApiKey()
   @CompanyPermission('company.deliveries.request')
   async cancel(@CurrentUser() user: AuthUser, @Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: CancelDeliveryDto) {
     const delivery = await this.prisma.delivery.findFirst({ where: { id, companyId, kind: 'ON_DEMAND' } });

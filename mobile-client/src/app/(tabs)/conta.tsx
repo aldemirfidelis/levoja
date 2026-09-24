@@ -29,8 +29,8 @@ export default function AccountTab() {
         <ListItem icon="shield" title="Privacidade e dados (LGPD)" onPress={() => router.push('/conta/privacidade')} />
       </ListGroup>
       <ListGroup title="Ajuda">
+        <ListItem icon="chat" title="Meus chamados" subtitle="Fale com a nossa equipe sobre pedidos, pagamentos e sua conta" onPress={() => router.push('/ajuda')} />
         <ListItem icon="help" title="Central de ajuda" onPress={() => WebBrowser.openBrowserAsync(`${kitConfig().webUrl}/ajuda`)} />
-        <ListItem icon="chat" title="Fale conosco" onPress={() => WebBrowser.openBrowserAsync(`${kitConfig().webUrl}/contato`)} />
       </ListGroup>
       <ListGroup>
         <ListItem

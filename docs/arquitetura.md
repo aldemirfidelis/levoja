@@ -42,6 +42,12 @@
 | `logistics` | entregas, despacho, rastreamento, geofence, prova de entrega, avaliações | 3 |
 | `coupons` | cupons e promoções | 4 |
 | `finance` | pagamentos, estornos, razão/carteiras, comissões, liquidação, saques, conciliação | 4 |
+| `chat` | conversas por pedido/entrega (cliente, loja, entregador), ligação mascarada, leitura auditada da equipe | 6 |
+| `support` | chamados, SLA (primeira resposta e resolução), anexos privados, notas internas, avaliação | 6 |
+| `operations` | torre de controle, mapa de calor, amostras agregadas de presença, relatórios (BI/CSV), painéis da empresa e da plataforma | 6 |
+| `broadcasts` | comunicados em massa (promoção com consentimento; aviso operacional para parceiros) | 6 |
+| `b2b` | contratos, tabela especial, limites, centros de custo, unidades, lotes e rotas, recorrências, faturas, chaves de API | 7 |
+| `intelligence` | antifraude (sinais, score, casos), previsão de demanda e de entregadores, calibração do tempo de entrega, anomalias, adicionais de preço com aprovação, análise de avaliações, IA assistiva | 8 |
 
 Próximas fases: ver [roadmap](roadmap.md). Decisões do financeiro: [ADR 0003](adr/0003-financeiro-ledger-e-liquidacao.md).
 
@@ -74,6 +80,8 @@ contratada, um modo de desenvolvimento **explícito** (configurado por variável
 | Mapas e rotas | OSRM + Nominatim (`MAPS_PROVIDER`, `GEOCODER`) | estimativa por distância em linha reta × 1,35 |
 | Pagamentos | Mercado Pago (`PAYMENT_GATEWAY=mercadopago`) ou `none` (só dinheiro) | `sandbox` — PIX e cartões simulados; **proibido em produção** |
 | Saques (PIX) | `PAYOUT_PROVIDER=manual` (financeiro transfere e confirma) | `sandbox` — transferência simulada; **proibido em produção** |
+| Ligação mascarada | Twilio (`VOICE_PROVIDER=twilio`): ponte com o número da plataforma | `none` — recurso oculto; o chat continua disponível |
+| IA assistiva | Claude pela API da Anthropic (`AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `AI_MODEL`) | `none` — modelos de texto, léxico e indicadores calculados (todos os recursos continuam funcionando) |
 
 ## Aplicativos (Expo)
 
@@ -90,6 +98,79 @@ contratada, um modo de desenvolvimento **explícito** (configurado por variável
   continua valendo. Erros de regra (4xx) são descartados e avisados; erros temporários mantêm a fila.
 - **GPS em segundo plano:** a tarefa é registrada no ponto de entrada do app (`index.ts`), antes do roteador,
   porque o sistema pode iniciar o JavaScript sem interface só para entregar posições.
+
+## Operação (Fase 6)
+
+- **Chat:** a conversa pertence a um pedido ou entrega; quem participa é recalculado a cada acesso a partir do
+  estado atual (ex.: o entregador que desiste perde o acesso). A conversa fica somente leitura após uma janela
+  configurável. Nenhuma resposta inclui telefone; a equipe de suporte lê (não escreve) e o acesso é auditado.
+- **Chamados:** prioridade inicial por regra (pagamento/reembolso e pedidos em andamento sobem), prazos de SLA
+  por prioridade vindos das configurações, verificação a cada 5 minutos (alerta uma única vez) e encerramento
+  automático de resolvidos. Anexos são validados pelo conteúdo e ficam em área privada do armazenamento.
+- **Torre de controle:** uma leitura consolidada (`snapshot`) alimenta mapa, indicadores e alertas; eventos de
+  tempo real antecipam a atualização. "Atrasado" usa o prazo prometido: previsão do pedido ou, na entrega
+  avulsa, início + duração estimada + folga configurável.
+- **Mapa de calor e relatórios:** agregação no banco (grade por coordenadas; fuso da operação com
+  `AT TIME ZONE`), sem carregar registros individuais na API. A disponibilidade de entregadores é guardada só
+  como contagem por célula a cada 5 minutos (LGPD). Relatórios devolvem indicadores, séries e tabelas genéricas;
+  o CSV (separador `;`, BOM, valores em reais) é gerado a partir da mesma tabela e a exportação é auditada.
+- **Comunicados:** promoções respeitam o consentimento mais recente de cada canal; avisos operacionais só vão
+  para entregadores e empresas. O envio roda em segundo plano, em lotes, com contagem de alcance.
+- **LGPD:** exportação e anonimização são extensíveis por eventos (`privacy.user.exporting`,
+  `privacy.user.anonymized`): chat e atendimento acrescentam seus dados à exportação e removem o conteúdo
+  escrito pelo titular após a exclusão.
+
+## Corporativo (Fase 7)
+
+- **Regras nas entregas:** o módulo B2B registra um gancho no serviço de entregas (mesmo padrão dos
+  pagamentos): preço pelo contrato (tabela especial ou desconto) e validação de limites **dentro da transação
+  de criação**, com trava por empresa (`pg_advisory_xact_lock`) — pedidos simultâneos não ultrapassam o
+  crédito. Entregas únicas, lotes e recorrências usam o mesmo `insertPrepared`.
+- **Lotes:** a planilha (CSV com `;`/`,`, Excel com proteção contra arquivos compactados maliciosos) vira linhas
+  normalizadas; a validação roda em segundo plano (geocodificação com cache e no máximo 1 consulta/s ao
+  Nominatim). Na confirmação, as linhas válidas são agrupadas em **rotas** (varredura angular por porte de
+  veículo, paradas, capacidade e trechos longos; ordem por vizinho mais próximo + 2-opt) e as entregas são
+  criadas numa única transação.
+- **Despacho de rotas:** só o líder da rota recebe ofertas, e apenas entregadores livres; o aceite atribui todas
+  as entregas da rota. Sem entregador dentro de `b2b.routeFallbackMinutes`, a rota é distribuída entrega a
+  entrega; se o líder sai da busca, outra entrega assume.
+- **Faturamento:** as entregas faturadas continuam lançando a dívida na carteira da empresa na conclusão; a
+  fatura agrupa esses valores por período (entregue = taxa + gorjeta; não realizada = taxa) e o pagamento
+  (PIX ou baixa manual) credita a carteira. A quitação avulsa de saldo desconta o que será cobrado em fatura.
+- **Chaves de API:** guardadas como HMAC; a requisição age em nome de quem criou a chave, restrita à empresa e
+  à interseção entre os escopos e as permissões atuais dessa pessoa, e só em rotas marcadas com `@AllowApiKey()`.
+
+## Inteligência (Fase 8)
+
+Princípio: regras explícitas e configuráveis, evidência guardada e **pessoa no controle** das decisões
+críticas. Nenhuma conta é bloqueada, nenhum preço muda e nenhuma resposta é enviada sem alguém decidir.
+
+- **Sinais de risco por evento:** os módulos emitem `risk.signal` (com a evidência e uma chave de
+  idempotência) ou eventos de domínio (`auth.session.started`, `order.created`, `payment.failed`); o
+  antifraude converte em pontos (`fraud.points`), recalcula o score com meia-vida e abre um caso acima de
+  `fraud.caseScore` — com trava por conta, sem casos duplicados. Varredura diária (03h50) procura taxas de
+  cancelamento e de desistência fora do padrão (desvio binomial) e aplica o decaimento.
+- **Ações automáticas leves:** ganchos no checkout (`OrdersService.registerCheckoutGuard`: conta de risco
+  alto paga online acima do limite), na elegibilidade de cupons (`CouponsService.registerEligibility`:
+  primeira compra reaproveitada no mesmo aparelho/endereço) e na prova de entrega (GPS simulado). Descartar
+  um caso isenta a conta por um período.
+- **Aparelho:** `X-Device-Id` (app: id de instalação no armazenamento seguro; web: cookie httpOnly do BFF)
+  entra no contexto da requisição; o antifraude guarda o HMAC por tenant, nunca o valor.
+- **Previsão (a cada hora):** entregas por cidade e hora = média ponderada da mesma hora/dia nas últimas
+  semanas × tendência (limitada), com intervalo de 80% e piso pelas entregas já agendadas. Entregadores
+  necessários = previsão ÷ produtividade; esperados = presença habitual na área da cidade (amostras
+  agregadas). Falta acima do limite gera `PricingSuggestion`; aprovada, vira `PricingSurcharge`, lida pelo
+  `PricingService` no contexto da cotação (não vale para tabelas de contrato).
+- **Tempo de entrega (diário):** fator real ÷ estimado por cidade × veículo × faixa horária, com recuo para
+  grupos mais amplos; medianas de espera; preparo real por loja. O modelo fica em memória e é registrado
+  em `DeliveriesService.eta` e na previsão do pedido.
+- **Anomalias (a cada 10 min):** volume × intervalo previsto, cancelamentos e pagamentos recusados ×
+  últimos 7 dias, despacho × mediana; chave de deduplicação por hora, encerramento automático quando o
+  indicador volta e alertas na torre (`OperationsService.registerAlertSource`).
+- **IA:** `AiProvider` abstrato (`DisabledAiProvider` / `AnthropicAiProvider` com o SDK oficial, saída
+  estruturada validada por Zod e fallback no servidor em caso de recusa). `AiService` aplica recursos
+  habilitados, limite diário e registra cada chamada (`AiInteraction`). Dados pessoais são removidos antes
+  do envio; o assistente das lojas só tem ferramentas somente leitura presas à empresa da rota.
 
 ## Multi-tenant
 

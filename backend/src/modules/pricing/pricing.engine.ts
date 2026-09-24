@@ -42,6 +42,8 @@ export interface PriceContext {
   raining?: boolean;
   /** Pressão de demanda de 0 (oferta sobrando) a 1 (sem entregadores disponíveis). */
   demandPressure?: number;
+  /** Adicional programado pela operação para a data/hora (ex.: pico previsto), em pontos-base. */
+  scheduledSurchargeBps?: number;
 }
 
 export interface PriceBreakdownLine {
@@ -118,6 +120,10 @@ export function computePrice(rule: PriceRule, context: PriceContext): PriceQuote
   if (rule.demandSurchargeMaxBps && pressure > 0.5) {
     const bps = Math.round(rule.demandSurchargeMaxBps * ((pressure - 0.5) / 0.5));
     if (bps > 0) surcharges.push({ label: 'Adicional de demanda', cents: applyBps(subtotal, bps) });
+  }
+
+  if (context.scheduledSurchargeBps && context.scheduledSurchargeBps > 0) {
+    surcharges.push({ label: 'Adicional de alta demanda', cents: applyBps(subtotal, context.scheduledSurchargeBps) });
   }
 
   const all = [...lines, ...surcharges];

@@ -7,6 +7,7 @@ export interface LocationPoint {
   speed?: number;
   heading?: number;
   recordedAt: string;
+  mocked?: boolean;
 }
 
 export type DeliveryAction = 'arrived-pickup' | 'picked-up' | 'start-route' | 'arrived-dropoff';

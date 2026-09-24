@@ -58,7 +58,7 @@ Legenda: ✅ concluído e testado · 🚧 em andamento · ⏳ planejado
 | Conciliação: relatório por período, pendências, verificação de integridade das carteiras, ajustes auditados | ✅ |
 | Interfaces: painel (financeiro, pagamentos, saques, carteiras, comissões, cupons); portal (financeiro e cupons da empresa, ganhos do entregador, créditos do cliente, entrega avulsa paga com carteira) | ✅ |
 | Checkout com PIX/cartão nos aplicativos | ✅ Fase 5 |
-| Faturamento mensal de entregas `INVOICE` (boleto/nota) | ⏳ Fase 7 |
+| Faturamento mensal de entregas `INVOICE` | ✅ Fase 7 |
 
 ## Fase 5 — Aplicativos ✅
 
@@ -74,17 +74,69 @@ Legenda: ✅ concluído e testado · 🚧 em andamento · ⏳ planejado
 | API: push segmentado por app e canal Android, MFA com perfil de app, detalhe da entrega do entregador, avaliação já feita, dados de tokenização do cartão | ✅ |
 | Qualidade: testes unitários (kit, cliente, entregador), E2E da API dos apps, `expo-doctor` e bundle Android no CI | ✅ |
 | Publicação nas lojas (contas Google Play/App Store, EAS projectId) e validação em aparelhos iOS | ⏳ depende das contas da empresa |
-| Chat e ligação mascarada entre cliente e entregador | ⏳ Fase 6 |
+| Chat e ligação mascarada entre cliente e entregador | ✅ Fase 6 |
 
-## Fase 6 — Operação ⏳
-Torre de controle em tempo real, mapa de calor, SLA, indicadores, relatórios (BI), suporte e chat.
+## Fase 6 — Operação ✅
 
-## Fase 7 — B2B ⏳
-Entregas em lote (CSV/Excel/API), contratos, tabelas especiais, faturamento mensal, centros de custo.
+| Item | Status |
+|---|---|
+| Chat por pedido/entrega (cliente ↔ loja, cliente ↔ entregador, loja ↔ entregador): participantes recalculados a cada acesso, janela de encerramento configurável, sem exposição de telefones, leitura da equipe auditada | ✅ |
+| Ligação mascarada por ponte telefônica (Twilio) com limite por conversa; desativada sem provedor (`VOICE_PROVIDER=none`) | ✅ |
+| Central de atendimento: chamados de clientes, entregadores e empresas, categorias, prioridade automática, SLA de primeira resposta e resolução (configurável), alerta de SLA estourado, notas internas, anexos privados validados pelo conteúdo, atribuição, reabertura, encerramento automático e avaliação (CSAT) | ✅ |
+| Torre de controle: entregadores online/ocupados/sem sinal, entregas aguardando/atrasadas, indicadores do dia (SLA, tempos de atribuição, coleta, percurso e entrega, pedidos/hora), oferta x demanda por região e alertas priorizados; tempo real + atualização periódica | ✅ |
+| Mapa de calor (demanda, pedidos, entregas, disponibilidade de entregadores) por período, faixa de horário, cidade e tamanho de célula; presença de entregadores guardada apenas de forma agregada, com retenção configurável | ✅ |
+| Relatórios (BI): comercial, operacional, financeiro (razão da plataforma) e entregadores, com filtros de período, agrupamento, cidade, segmento e empresa; exportação CSV (Excel pt-BR) auditada | ✅ |
+| Painel da empresa: vendas, pedidos, ticket médio, receita líquida, taxas, avaliações, tempos de preparo/entrega, conversão (visitas à loja) e mais vendidos | ✅ |
+| Painel administrativo ampliado (pedidos, GMV, entregas, receita, cancelamentos, chamados, avaliações, entregadores ativos) | ✅ |
+| Comunicados: promoções só pelos canais com consentimento (LGPD) e avisos operacionais para entregadores/empresas, com estimativa de alcance e envio em lotes | ✅ |
+| LGPD: exportação inclui mensagens e chamados; exclusão remove o conteúdo escrito pelo titular e seus anexos | ✅ |
+| Interfaces: painel (operação, mapa de calor, relatórios, atendimento, comunicados), portal (indicadores, mensagens e atendimento da empresa; atendimento do cliente e do entregador; chat nos pedidos e entregas) e apps (chat, ligação, chamados, canal de promoções) | ✅ |
+| Testes: unitários (fusos, períodos, CSV) e E2E da operação (chat, chamados, SLA, torre, mapa de calor, relatórios, painéis, comunicados, LGPD) | ✅ |
 
-## Fase 8 — Inteligência ⏳
-Previsão de demanda e ETA, otimização de rotas, antifraude com score de risco, assistentes — sempre com
-regras e supervisão humana para decisões críticas.
+## Fase 7 — B2B ✅
+
+| Item | Status |
+|---|---|
+| Contratos corporativos: vigência, rascunho → ativo → suspenso → encerrado, um contrato em vigor por empresa, auditoria e aviso à empresa | ✅ |
+| Tabela especial por contrato (mesmo motor de preços, sem adicional de demanda) ou desconto sobre a tabela padrão; simulador para o comercial | ✅ |
+| Limites: crédito para entregas faturadas (conferido com trava por empresa), bloqueio por fatura vencida, orçamento mensal por centro de custo, centro de custo obrigatório | ✅ |
+| Centros de custo, unidades/locais (coleta, destino e transferência entre unidades) e referência do cliente nas entregas | ✅ |
+| Entregas em lote por CSV, Excel ou API: modelo para download, validação em segundo plano (endereços, preços, centros de custo, duplicidades), erros por linha, confirmação com reagendamento, cancelamento e resultado em CSV | ✅ |
+| Rotas de lote: agrupamento por varredura angular (paradas, capacidade, trechos longos), ordem por vizinho mais próximo + 2-opt, oferta da rota inteira a um entregador livre, distribuição individual quando não há entregador para a rota | ✅ |
+| Aviso ao destinatário por SMS (link de acompanhamento e código) e resumo do lote para a empresa (sem uma notificação por entrega) | ✅ |
+| Entregas recorrentes (dias da semana e horário, entre unidades ou para um endereço), geradas com antecedência e uma única vez por data, com aviso de falha | ✅ |
+| Faturamento mensal: fechamento no dia do contrato (com recuperação de dias perdidos), fatura por período com resumo por centro de custo, franquia mínima, vencimento, PIX com baixa automática, baixa manual, atraso, cancelamento e demonstrativo CSV | ✅ |
+| Chaves de API por empresa (hash, escopos, validade, revogação), aceitas somente nas rotas de integração | ✅ |
+| Relatório corporativo (portal e painel): entregas, gasto, prazo e centros de custo, com CSV | ✅ |
+| Interfaces: portal (área corporativa completa e solicitação com unidades/centro de custo), painel (contratos, tabela especial, faturas, relatório corporativo) e app do entregador (ofertas de rota) | ✅ |
+| Testes: unitários (rotas, planilhas, leitura de cabeçalhos) e E2E do corporativo | ✅ |
+| Boleto registrado e nota fiscal de serviço (dependem de contrato com banco/prefeitura) | ⏳ integração futura |
+
+## Fase 8 — Inteligência ✅
+
+Regra geral: a inteligência **sugere e sinaliza**; decisões críticas (bloquear conta, aplicar preço,
+responder cliente) ficam com uma pessoa, e toda ação automática é leve, configurável e reversível.
+
+| Item | Status |
+|---|---|
+| Antifraude com score de risco configurável (pontos por sinal, meia-vida, limites de nível e de caso) e casos para revisão humana (assumir, descartar com isenção temporária, confirmar; bloqueio é decisão separada) | ✅ |
+| Múltiplas contas: aparelho registrado no login (id de instalação do app / cookie do navegador, guardado como hash) e contas relacionadas | ✅ |
+| Cupom de primeira compra reaproveitado no mesmo aparelho ou endereço: recusado na cotação, com sinal de risco | ✅ |
+| Pedidos suspeitos: conta nova com valor alto, muitos pedidos por hora; conta de risco alto paga só online acima do limite (até a equipe liberar) | ✅ |
+| Pagamentos suspeitos: recusas em sequência e vários cartões no mesmo dia | ✅ |
+| Localização inconsistente: GPS simulado (flag do Android enviada pelo app), deslocamento impossível e conclusão longe do destino; entrega com GPS simulado é recusada (configurável) | ✅ |
+| Cancelamentos e desistências anormais: varredura diária com desvio binomial em relação à média da plataforma | ✅ |
+| Previsão de demanda por cidade e hora (sazonal ponderada + tendência, intervalo de 80%, piso pelas entregas já agendadas), precisão acompanhada (erro sobre o volume, horas dentro do intervalo) | ✅ |
+| Previsão de necessidade de entregadores × presença habitual; falta prevista vira sugestão de adicional de preço, aplicada só com aprovação (adicional com data e hora sobre frete e repasse; contratos não mudam) | ✅ |
+| Previsão do tempo de entrega calibrada pelo histórico (fator real por cidade/veículo/faixa horária, esperas medianas, erro antes/depois) e preparo real de cada loja usado na previsão do pedido | ✅ |
+| Otimização de rotas: rota do entregador com várias entregas por vizinho mais próximo + 2-opt + or-opt, sempre com a coleta antes da entrega | ✅ |
+| Anomalias: volume fora da previsão (pico/queda), picos de cancelamento e de pagamentos recusados, despacho lento — na torre de controle, com acompanhamento e encerramento automático | ✅ |
+| Análise de avaliações: sentimento e temas (lista fechada) pelo léxico em tempo real e refinados pela IA em lotes; filtros no painel e resumo por loja/entregador | ✅ |
+| Atendimento automatizado assistido: rascunho de resposta (IA ou modelo de texto) com resumo, prioridade sugerida e ações que dependem da equipe — nunca enviado sozinho | ✅ |
+| Assistente das empresas: indicadores, previsão de 7 dias, horários de pico, recomendações por regras e perguntas em linguagem natural com ferramentas somente leitura da própria loja | ✅ |
+| Provedor de IA atrás de interface (`AI_PROVIDER=none` ou `anthropic`, Claude com fallback no servidor), dados pessoais removidos antes do envio, limite diário por pessoa e registro de cada chamada | ✅ |
+| Interfaces: painel (Antifraude, Inteligência, sugestão no atendimento, filtros de avaliações, alertas na torre), portal (Assistente) e app do entregador (GPS simulado) | ✅ |
+| Testes: unitários (score, GPS, taxas, previsão, anomalias, rotas, léxico, dados pessoais) e E2E da inteligência (com provedor de IA simulado) | ✅ |
 
 ## Fase 9 — Escala ⏳
 Multi-cidade, white label (domínio, marca, app), planos SaaS, API pública.

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { PARTNER_STATUS_LABELS, PartnerStatus } from '@levoja/shared';
+import { formatBRL, PARTNER_STATUS_LABELS, PartnerStatus } from '@levoja/shared';
 import { useApi } from '@levoja/web-kit/client';
 import { Card, ErrorState, formatDateTime, PageHeader, Skeleton, StatCard } from '@levoja/web-kit/ui';
 import { useSession } from '@/lib/session';
@@ -31,6 +31,63 @@ function StatusBreakdown({ byStatus, href }: { byStatus: Record<string, number>;
   );
 }
 
+const rating = (value: { average: number | null; count: number }) =>
+  value.average == null ? '—' : `${value.average.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ★`;
+
+/** Pedidos, entregas, receita, entregadores, chamados e avaliações (conforme as permissões). */
+function BusinessOverview({ business }: { business: Dashboard['business'] }) {
+  const { can } = useSession();
+  return (
+    <>
+      {business.today && (
+        <section aria-label="Hoje">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Hoje</h2>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard label="Pedidos" value={business.today.orders.toLocaleString('pt-BR')} hint={`${business.today.canceledOrders} cancelado(s)`} />
+            <StatCard label="Vendas (GMV)" value={formatBRL(business.today.gmvCents)} hint={business.today.averageTicketCents == null ? undefined : `Ticket médio ${formatBRL(business.today.averageTicketCents)}`} />
+            <StatCard label="Entregas concluídas" value={business.today.deliveriesCompleted.toLocaleString('pt-BR')} hint={`${business.today.deliveriesCanceled} cancelada(s)/não entregue(s)`} />
+            <StatCard
+              label="Entregadores ativos agora"
+              value={business.driversNow.online + business.driversNow.busy}
+              hint={
+                can('operations.view') ? (
+                  <Link href="/operacao" className="text-brand-600 hover:underline">
+                    {business.driversNow.online} livres · {business.driversNow.busy} em entrega — torre de controle
+                  </Link>
+                ) : (
+                  `${business.driversNow.online} livres · ${business.driversNow.busy} em entrega`
+                )
+              }
+            />
+          </div>
+        </section>
+      )}
+      <section aria-label="Últimos 30 dias">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Últimos 30 dias</h2>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {business.last30Days && <StatCard label="Vendas (GMV)" value={formatBRL(business.last30Days.gmvCents)} hint={`${business.last30Days.orders.toLocaleString('pt-BR')} pedidos · ${business.last30Days.cancellationRate ?? 0}% cancelados`} />}
+          {business.last30Days?.netRevenueCents != null && (
+            <StatCard label="Receita líquida" value={formatBRL(business.last30Days.netRevenueCents)} hint={`Comissões ${formatBRL(business.last30Days.commissionCents ?? 0)} · taxas ${formatBRL(business.last30Days.feesCents ?? 0)}`} />
+          )}
+          {business.tickets && (
+            <StatCard
+              label="Chamados em aberto"
+              value={business.tickets.open}
+              tone={business.tickets.slaBreached ? 'danger' : 'neutral'}
+              hint={
+                <Link href="/suporte" className="text-brand-600 hover:underline">
+                  {business.tickets.slaBreached} com SLA estourado
+                </Link>
+              }
+            />
+          )}
+          <StatCard label="Avaliação das lojas" value={rating(business.ratings.companies)} hint={`Entregadores ${rating(business.ratings.drivers)} · ${business.ratings.companies.count + business.ratings.drivers.count} avaliações`} />
+        </div>
+      </section>
+    </>
+  );
+}
+
 export default function DashboardPage() {
   const { me, can } = useSession();
   const { data, error, isLoading, refetch } = useApi<Dashboard>('admin/dashboard');
@@ -48,6 +105,7 @@ export default function DashboardPage() {
       )}
       {data && (
         <div className="space-y-6">
+          <BusinessOverview business={data.business} />
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Usuários" value={data.users.total.toLocaleString('pt-BR')} hint={`+${data.users.newLast30Days} nos últimos 30 dias`} />
             <StatCard label="Clientes" value={data.users.customers.toLocaleString('pt-BR')} />

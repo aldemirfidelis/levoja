@@ -40,6 +40,10 @@ describe('cliente HTTP', () => {
     const headers = calls[0].init.headers as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer access-1');
     expect(headers['X-Tenant']).toBe('levoja');
+    // Id de instalação estável entre requisições (antifraude).
+    expect(headers['X-Device-Id']).toMatch(/^[a-f0-9]{16,128}$/);
+    await api.get('auth/me');
+    expect((calls[1].init.headers as Record<string, string>)['X-Device-Id']).toBe(headers['X-Device-Id']);
   });
 
   it('renova o token uma única vez para várias requisições com 401 simultâneas', async () => {

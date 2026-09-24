@@ -4,12 +4,16 @@ import { PrismaService } from '../../infra/prisma/prisma.service';
 import { CurrentUser } from '../../common/decorators';
 import type { AuthUser } from '../../common/auth/auth-user';
 import { ForbiddenException } from '@nestjs/common';
+import { ReportsService } from '../operations/reports.service';
 
 @ApiTags('Admin • Dashboard')
 @ApiBearerAuth()
 @Controller('admin/dashboard')
 export class AdminDashboardController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly reports: ReportsService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Indicadores gerais da plataforma' })
@@ -18,7 +22,7 @@ export class AdminDashboardController {
     const tenantId = user.tenantId;
     const since = new Date(Date.now() - 30 * 86_400_000);
 
-    const [usersTotal, usersNew30d, customers, companiesByStatus, driversByStatus, pendingCompanyDocs, pendingDriverDocs, privacyOpen, recentActivity] =
+    const [usersTotal, usersNew30d, customers, companiesByStatus, driversByStatus, pendingCompanyDocs, pendingDriverDocs, privacyOpen, recentActivity, business] =
       await Promise.all([
         this.prisma.user.count({ where: { tenantId, anonymizedAt: null } }),
         this.prisma.user.count({ where: { tenantId, createdAt: { gte: since } } }),
@@ -36,6 +40,8 @@ export class AdminDashboardController {
               select: { id: true, action: true, entityType: true, entityId: true, createdAt: true, actor: { select: { name: true } } },
             })
           : Promise.resolve([]),
+        // Pedidos, entregas, receita, cancelamentos, avaliações e chamados (conforme as permissões de quem vê).
+        this.reports.platformOverview(user),
       ]);
 
     const toMap = (rows: { status: string; _count: { _all: number } }[]) =>
@@ -51,6 +57,7 @@ export class AdminDashboardController {
       pendingDocuments: { companies: pendingCompanyDocs, drivers: pendingDriverDocs },
       privacyRequestsOpen: privacyOpen,
       recentActivity,
+      business,
     };
   }
 }

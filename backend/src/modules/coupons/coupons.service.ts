@@ -36,7 +36,12 @@ export interface CouponContext {
   deliveryFeeCents: number;
   at: Date;
   timeZone: string;
+  /** Endereço de entrega (regras antifraude de cupom de primeira compra). */
+  dropoff?: { zipCode?: string | null; street?: string | null; number?: string | null } | null;
 }
+
+/** Regra extra de elegibilidade (ex.: antifraude). Retorna o motivo da recusa ou null. */
+export type CouponEligibility = (coupon: Coupon, context: CouponContext) => Promise<string | null>;
 
 export type CouponEvaluation =
   | { ok: true; coupon: Coupon; discountCents: number; freeDelivery: boolean }
@@ -46,10 +51,16 @@ const toMinutes = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.
 
 @Injectable()
 export class CouponsService {
+  private readonly eligibility: CouponEligibility[] = [];
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
   ) {}
+
+  registerEligibility(check: CouponEligibility): void {
+    this.eligibility.push(check);
+  }
 
   normalizeCode(code: string): string {
     return code.trim().toUpperCase();
@@ -80,6 +91,10 @@ export class CouponsService {
     if (coupon.firstOrderOnly) {
       const previous = await tx.order.count({ where: { customerId: context.customerId, status: { not: 'CANCELED' } } });
       if (previous > 0) return { ok: false, reason: 'Cupom válido apenas na primeira compra.' };
+    }
+    for (const check of this.eligibility) {
+      const reason = await check(coupon, context);
+      if (reason) return { ok: false, reason };
     }
 
     let discountCents = 0;

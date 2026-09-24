@@ -38,6 +38,12 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
 import { MarketplaceModule } from './modules/marketplace.module';
 import { LogisticsModule } from './modules/logistics/logistics.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { ChatModule } from './modules/chat/chat.module';
+import { SupportModule } from './modules/support/support.module';
+import { OperationsModule } from './modules/operations/operations.module';
+import { BroadcastsModule } from './modules/broadcasts/broadcasts.module';
+import { B2bModule } from './modules/b2b/b2b.module';
+import { IntelligenceModule } from './modules/intelligence/intelligence.module';
 
 const env = loadEnv();
 
@@ -101,6 +107,12 @@ const env = loadEnv();
     MarketplaceModule,
     LogisticsModule,
     FinanceModule,
+    ChatModule,
+    SupportModule,
+    OperationsModule,
+    BroadcastsModule,
+    B2bModule,
+    IntelligenceModule,
   ],
   controllers: [ObservabilityController, PublicFilesController],
   providers: [

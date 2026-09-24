@@ -1,5 +1,5 @@
 import { kitConfig } from './config';
-import { tokenStore } from './token-store';
+import { getDeviceId, tokenStore } from './token-store';
 
 export interface Paginated<T> {
   data: T[];
@@ -86,6 +86,7 @@ async function send(method: string, path: string, options: RequestOptions, withA
   const { tenant } = kitConfig();
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (tenant) headers['X-Tenant'] = tenant;
+  headers['X-Device-Id'] = await getDeviceId();
   if (withAuth && accessToken) headers.Authorization = `Bearer ${accessToken}`;
   let body: BodyInit | undefined;
   if (options.body instanceof FormData) {

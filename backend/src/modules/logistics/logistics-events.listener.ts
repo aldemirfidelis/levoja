@@ -154,6 +154,8 @@ export class LogisticsEventsListener {
     if (event.kind !== 'ON_DEMAND') return;
     const important = ['DRIVER_ASSIGNED', 'PICKED_UP', 'AT_DROPOFF', 'DELIVERED', 'FAILED', 'CANCELED'];
     if (!important.includes(event.to)) return;
+    // Lotes: o andamento é resumido por lote; por entrega, só falhas e cancelamentos pela plataforma.
+    if (event.batchId && !(event.to === 'FAILED' || (event.to === 'CANCELED' && event.actorType !== 'COMPANY'))) return;
     const recipients = event.companyId
       ? (
           await this.prisma.companyUser.findMany({

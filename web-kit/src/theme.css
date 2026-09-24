@@ -43,6 +43,9 @@
   --lj-warning: #d97706;
   --lj-danger: #dc2626;
   --lj-info: #2563eb;
+  /* Gráficos: série única (azul validado para daltonismo e contraste nesta superfície). */
+  --lj-chart-1: #2a78d6;
+  --lj-chart-1-soft: rgba(42, 120, 214, 0.1);
   color-scheme: light;
 }
 
@@ -58,6 +61,8 @@
     --lj-warning: #e3a008;
     --lj-danger: #f85149;
     --lj-info: #58a6ff;
+    --lj-chart-1: #3987e5;
+    --lj-chart-1-soft: rgba(57, 135, 229, 0.14);
     color-scheme: dark;
   }
 }
@@ -73,6 +78,8 @@
   --lj-warning: #e3a008;
   --lj-danger: #f85149;
   --lj-info: #58a6ff;
+  --lj-chart-1: #3987e5;
+  --lj-chart-1-soft: rgba(57, 135, 229, 0.14);
   color-scheme: dark;
 }
 

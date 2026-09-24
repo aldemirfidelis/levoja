@@ -21,6 +21,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
     "@aws-sdk/client-s3": "^3.1138.0",
     "@aws-sdk/s3-request-presigner": "^3.1138.0",
     "@levoja/shared": "workspace:^",
@@ -43,6 +44,7 @@
     "class-validator": "^0.15.1",
     "compression": "^1.8.2",
     "dotenv": "^18.0.3",
+    "exceljs": "^4.4.0",
     "helmet": "^8.3.0",
     "ioredis": "^6.0.0",
     "nestjs-pino": "^5.2.0",

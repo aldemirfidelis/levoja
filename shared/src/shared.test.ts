@@ -126,3 +126,36 @@ test('saques ficam com proprietário e financeiro da empresa', () => {
   assert.ok(!keys('company_manager').includes('company.finance.withdraw'));
   assert.ok(!keys('company_attendant').includes('company.finance.read'));
 });
+
+test('B2B: cabeçalhos, categorias, comprovação e números no formato brasileiro', async () => {
+  const { matchBatchColumn, parseItemCategory, parseProofMethod, parseDecimal, BATCH_COLUMNS } = await import('./index');
+  assert.equal(matchBatchColumn('Destinatário'), 'recipientName');
+  assert.equal(matchBatchColumn('Nº'), 'number');
+  assert.equal(matchBatchColumn('coluna qualquer'), null);
+  assert.equal(matchBatchColumn('número'), 'number');
+  assert.equal(matchBatchColumn('Centro de Custo'), 'costCenter');
+  assert.equal(matchBatchColumn('lon'), 'lng');
+  assert.equal(parseItemCategory('Documentos'), 'DOCUMENT');
+  assert.equal(parseItemCategory('package'), 'PACKAGE');
+  assert.equal(parseItemCategory('foguete'), null);
+  assert.equal(parseProofMethod('Assinatura digital'), 'SIGNATURE');
+  assert.equal(parseProofMethod('assinatura'), 'SIGNATURE');
+  assert.equal(parseProofMethod('QR'), 'QR_CODE');
+  assert.equal(parseDecimal('1.234,56'), 1234.56);
+  assert.equal(parseDecimal('R$ 12,90'), 12.9);
+  assert.equal(parseDecimal('0.5'), 0.5);
+  assert.equal(parseDecimal('abc'), null);
+  // Cada coluna tem cabeçalho único.
+  assert.equal(new Set(BATCH_COLUMNS.map((column) => column.header)).size, BATCH_COLUMNS.length);
+});
+
+test('Inteligência: faixas horárias e rótulos completos', async () => {
+  const { etaBand, ETA_BAND_LABELS, REVIEW_THEMES, REVIEW_THEME_LABELS, RISK_SIGNAL_TYPES } = await import('./index');
+  assert.deepEqual([0, 5, 6, 10, 11, 13, 14, 17, 18, 21, 22, 23].map(etaBand), [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5]);
+  assert.equal(ETA_BAND_LABELS.length, 6);
+  assert.ok(REVIEW_THEMES.every((theme) => REVIEW_THEME_LABELS[theme].length > 0));
+  assert.ok(RISK_SIGNAL_TYPES.includes('MOCK_LOCATION'));
+  const { cityKey } = await import('./index');
+  assert.equal(cityKey(' São Paulo ', 'SP'), 'sao paulo/sp');
+  assert.equal(cityKey('Jundiaí', null), 'jundiai/');
+});

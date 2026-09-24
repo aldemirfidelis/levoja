@@ -1,5 +1,6 @@
 import { ConflictException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { haversineKm, LatLng } from '@levoja/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
@@ -8,6 +9,9 @@ import { AuditService } from '../audit/audit.service';
 import type { AuthUser } from '../../common/auth/auth-user';
 import { ACTIVE_DELIVERY_STATUSES, DeliveriesService, deliveryInclude } from './deliveries.service';
 import { LocationPointDto } from './deliveries.dto';
+import { optimizeRoute } from '../../common/route-optimizer';
+import { RISK_SIGNAL, RiskSignalEvent } from '../../common/intelligence-events';
+import { impossibleJumps, TimedPoint } from '../intelligence/risk.engine';
 
 const STALE_ONLINE_MINUTES = 5;
 
@@ -27,6 +31,7 @@ export class TrackingService {
     private readonly realtime: RealtimeService,
     private readonly audit: AuditService,
     private readonly deliveries: DeliveriesService,
+    private readonly events: EventEmitter2,
   ) {}
 
   private driverId(user: AuthUser): string {
@@ -67,7 +72,10 @@ export class TrackingService {
   /** Recebe um ou vários pontos (sincronização após perda de conexão), em ordem cronológica. */
   async updateLocation(user: AuthUser, points: LocationPointDto[]) {
     const driverId = this.driverId(user);
-    const driver = await this.prisma.driver.findUniqueOrThrow({ where: { id: driverId }, select: { availability: true, tenantId: true } });
+    const driver = await this.prisma.driver.findUniqueOrThrow({
+      where: { id: driverId },
+      select: { availability: true, tenantId: true, lastLat: true, lastLng: true, lastLocationAt: true },
+    });
     if (driver.availability === 'OFFLINE') return { accepted: 0, tracking: false };
 
     const now = Date.now();
@@ -79,7 +87,11 @@ export class TrackingService {
     if (!sorted.length) return { accepted: 0, tracking: false };
     const latest = sorted[sorted.length - 1];
 
-    await this.prisma.driver.update({ where: { id: driverId }, data: { lastLat: latest.lat, lastLng: latest.lng, lastLocationAt: latest.at } });
+    await this.prisma.driver.update({
+      where: { id: driverId },
+      data: { lastLat: latest.lat, lastLng: latest.lng, lastLocationAt: latest.at, lastLocationMocked: !!latest.mocked },
+    });
+    await this.inspectGps(user, driver, sorted);
 
     const active = await this.prisma.delivery.findMany({ where: { driverId, status: { in: ACTIVE_DELIVERY_STATUSES } } });
     if (active.length) {
@@ -94,6 +106,7 @@ export class TrackingService {
             speed: point.speed,
             heading: point.heading,
             recordedAt: point.at,
+            mocked: !!point.mocked,
           })),
         ),
       });
@@ -107,6 +120,47 @@ export class TrackingService {
     }
     this.realtime.toOps(driver.tenantId, 'driver.location', { driverId, lat: latest.lat, lng: latest.lng, busy: active.length > 0 });
     return { accepted: sorted.length, tracking: active.length > 0 };
+  }
+
+  /**
+   * Antifraude de GPS: leituras marcadas como simuladas e saltos impossíveis entre leituras
+   * viram sinais de risco (no máximo um de cada tipo por hora) para revisão da equipe.
+   */
+  private async inspectGps(
+    user: AuthUser,
+    previous: { tenantId: string; lastLat: number | null; lastLng: number | null; lastLocationAt: Date | null },
+    points: (LocationPointDto & { at: Date })[],
+  ) {
+    const hour = new Date().toISOString().slice(0, 13);
+    const mocked = points.filter((point) => point.mocked);
+    if (mocked.length) {
+      this.events.emit(RISK_SIGNAL, {
+        tenantId: previous.tenantId,
+        userId: user.userId,
+        type: 'MOCK_LOCATION',
+        message: `${mocked.length} leitura(s) de GPS marcadas como localização simulada pelo aparelho.`,
+        details: { readings: mocked.length, first: { lat: mocked[0].lat, lng: mocked[0].lng, at: mocked[0].at } },
+        dedupeKey: `mock:${user.userId}:${hour}`,
+      } satisfies RiskSignalEvent);
+    }
+    const { maxSpeedKmh } = await this.settings.get(previous.tenantId, 'fraud');
+    const trail: TimedPoint[] = points.map((point) => ({ lat: point.lat, lng: point.lng, at: point.at, accuracy: point.accuracy }));
+    // A última posição conhecida entra só se for recente (depois de horas offline o salto é normal).
+    if (previous.lastLat != null && previous.lastLng != null && previous.lastLocationAt && Date.now() - previous.lastLocationAt.getTime() < 3_600_000) {
+      trail.unshift({ lat: previous.lastLat, lng: previous.lastLng, at: previous.lastLocationAt });
+    }
+    const jumps = impossibleJumps(trail, maxSpeedKmh);
+    if (jumps.length) {
+      const worst = jumps.reduce((best, jump) => (jump.kmh > best.kmh ? jump : best));
+      this.events.emit(RISK_SIGNAL, {
+        tenantId: previous.tenantId,
+        userId: user.userId,
+        type: 'IMPOSSIBLE_SPEED',
+        message: `Deslocamento de ${worst.km.toLocaleString('pt-BR')} km a ${worst.kmh} km/h entre duas leituras de GPS.`,
+        details: { km: worst.km, kmh: worst.kmh, from: worst.from, to: worst.to, jumps: jumps.length },
+        dedupeKey: `speed:${user.userId}:${hour}`,
+      } satisfies RiskSignalEvent);
+    }
   }
 
   private async checkGeofence(user: AuthUser, delivery: { id: string; status: string; pickupLat: number; pickupLng: number; dropoffLat: number; dropoffLng: number }, point: LatLng, meters: number) {
@@ -123,7 +177,7 @@ export class TrackingService {
     }
   }
 
-  /** Entregas ativas do entregador, com as paradas em ordem (coletas antes das entregas, vizinho mais próximo). */
+  /** Entregas ativas do entregador, com as paradas em ordem otimizada (coletas antes das entregas). */
   async activeRoute(user: AuthUser) {
     const driverId = this.driverId(user);
     const [driver, deliveries] = await Promise.all([
@@ -137,17 +191,9 @@ export class TrackingService {
       if (!pickedUp) pending.push({ deliveryId: delivery.id, code: delivery.code, type: 'PICKUP', lat: delivery.pickupLat, lng: delivery.pickupLng, label: delivery.company?.tradeName ?? 'Coleta' });
       pending.push({ deliveryId: delivery.id, code: delivery.code, type: 'DROPOFF', lat: delivery.dropoffLat, lng: delivery.dropoffLng, label: 'Entrega' });
     }
-    // Vizinho mais próximo respeitando precedência: a entrega só entra depois da sua coleta.
-    const ordered: Stop[] = [];
-    let current: LatLng | null = driver.lastLat != null && driver.lastLng != null ? { lat: driver.lastLat, lng: driver.lastLng } : null;
-    while (pending.length) {
-      const eligible = pending.filter((stop) => stop.type === 'PICKUP' || !pending.some((other) => other.type === 'PICKUP' && other.deliveryId === stop.deliveryId));
-      const from = current;
-      const next = from ? eligible.reduce((best, stop) => (haversineKm(from, stop) < haversineKm(from, best) ? stop : best)) : eligible[0];
-      ordered.push(next);
-      pending.splice(pending.indexOf(next), 1);
-      current = next;
-    }
+    // Vizinho mais próximo + 2-opt/or-opt, sempre com a entrega depois da sua coleta.
+    const current: LatLng | null = driver.lastLat != null && driver.lastLng != null ? { lat: driver.lastLat, lng: driver.lastLng } : null;
+    const ordered = optimizeRoute(current, pending);
     return { deliveries: deliveries.map((delivery) => this.deliveries.driverView(delivery)), stops: ordered };
   }
 

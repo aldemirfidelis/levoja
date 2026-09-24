@@ -19,6 +19,7 @@ import {
   Input,
   SessionsCard,
   SkeletonRows,
+  SupportCenter,
   Tabs,
   Textarea,
   TwoFactorCard,
@@ -29,7 +30,7 @@ import { formatBRL } from '@levoja/shared';
 import { usePortal } from '@/lib/portal-session';
 import { maskCpf, maskPhone } from '@/components/signup-fields';
 
-type Tab = 'perfil' | 'enderecos' | 'creditos' | 'notificacoes' | 'privacidade' | 'seguranca';
+type Tab = 'perfil' | 'enderecos' | 'creditos' | 'atendimento' | 'notificacoes' | 'privacidade' | 'seguranca';
 
 function Profile() {
   const { me, refresh } = usePortal();
@@ -403,6 +404,12 @@ function Credits() {
   );
 }
 
+/** Chamados do cliente (com os pedidos recentes para vincular). */
+function CustomerSupport() {
+  const { data } = useApi<Paginated<{ id: string; number: number; company: { tradeName: string } }>>('orders', { pageSize: 20 });
+  return <SupportCenter as="CUSTOMER" orderOptions={data?.data.map((order) => ({ id: order.id, label: `Pedido #${order.number} · ${order.company.tradeName}` }))} />;
+}
+
 function AccountContent() {
   const params = useSearchParams();
   const router = useRouter();
@@ -425,6 +432,7 @@ function AccountContent() {
             { value: 'perfil', label: 'Perfil' },
             { value: 'enderecos', label: 'Endereços' },
             ...(me.customerId ? [{ value: 'creditos' as const, label: 'Créditos' }] : []),
+            ...(me.customerId ? [{ value: 'atendimento' as const, label: 'Atendimento' }] : []),
             { value: 'notificacoes', label: 'Notificações' },
             { value: 'privacidade', label: 'Privacidade' },
             { value: 'seguranca', label: 'Segurança' },
@@ -434,6 +442,7 @@ function AccountContent() {
       {tab === 'perfil' && <Profile />}
       {tab === 'enderecos' && <Addresses />}
       {tab === 'creditos' && me.customerId && <Credits />}
+      {tab === 'atendimento' && me.customerId && <CustomerSupport />}
       {tab === 'notificacoes' && <Notifications />}
       {tab === 'privacidade' && <Privacy />}
       {tab === 'seguranca' && (

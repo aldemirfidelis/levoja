@@ -32,9 +32,23 @@ export const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionC
 export interface ClientInfo {
   ip?: string;
   userAgent?: string;
+  /** Cabeçalho X-Device-Id (sinal antifraude). */
+  deviceId?: string;
 }
 
 export const Client = createParamDecorator((_data: unknown, ctx: ExecutionContext): ClientInfo => {
   const request = ctx.switchToHttp().getRequest();
-  return { ip: request.ip, userAgent: request.headers['user-agent']?.slice(0, 300) };
+  const device = request.headers['x-device-id'];
+  return {
+    ip: request.ip,
+    userAgent: request.headers['user-agent']?.slice(0, 300),
+    deviceId: typeof device === 'string' && /^[A-Za-z0-9_-]{16,128}$/.test(device) ? device : undefined,
+  };
 });
+
+export const ALLOW_API_KEY = 'allowApiKey';
+/**
+ * Rota que aceita chave de API de empresa (integrações). Sem este decorador, requisições com chave
+ * de API são recusadas — a chave nunca age como o usuário que a criou em outras rotas.
+ */
+export const AllowApiKey = () => SetMetadata(ALLOW_API_KEY, true);

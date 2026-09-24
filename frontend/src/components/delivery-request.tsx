@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { formatBRL, ITEM_CATEGORIES, ITEM_CATEGORY_LABELS, VEHICLE_TYPE_LABELS, VEHICLE_TYPES } from '@levoja/shared';
 import { api, useApi } from '@levoja/web-kit/client';
 import { Button, Card, errorMessage, Input, Select, Textarea } from '@levoja/web-kit/ui';
@@ -12,6 +12,28 @@ interface SavedAddress {
   number: string;
   district: string;
   lat: number | null;
+}
+
+interface B2bOverview {
+  canInvoice: boolean;
+  availableCreditCents: number;
+  contract: { number: number; requireCostCenter: boolean } | null;
+}
+
+interface CompanyLocation {
+  id: string;
+  name: string;
+  street: string;
+  number: string;
+  city: string;
+}
+
+interface CostCenterOption {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+  availableThisMonthCents: number | null;
 }
 
 interface Quote {
@@ -107,27 +129,40 @@ function StopFields({ title, value, onChange, addresses, allowSaved }: { title: 
  * Solicitação de entrega avulsa (cotação → confirmação). `basePath` = "deliveries" (cliente)
  * ou "companies/<id>/deliveries" (empresa, coleta padrão no endereço da empresa).
  */
-export function DeliveryRequestForm({ basePath, isCompany, onCreated }: { basePath: string; isCompany?: boolean; onCreated: (id: string) => void }) {
+export function DeliveryRequestForm({ basePath, isCompany, companyId, onCreated }: { basePath: string; isCompany?: boolean; companyId?: string; onCreated: (id: string) => void }) {
   const { data: addresses } = useApi<SavedAddress[]>(isCompany ? null : 'me/addresses');
   const { data: methods } = useApi<{ deliveries: { customer: string[]; company: string[] } }>('payments/methods');
   const { data: credits } = useApi<{ availableCents: number }>(isCompany ? null : 'customers/me/wallet');
-  const allowedMethods = methods ? (isCompany ? methods.deliveries.company : methods.deliveries.customer) : isCompany ? ['INVOICE', 'CASH'] : ['CASH'];
+  // Empresas: contrato (faturado), unidades cadastradas e centros de custo.
+  const { data: b2b } = useApi<B2bOverview>(companyId ? `companies/${companyId}/b2b` : null);
+  const { data: locations } = useApi<CompanyLocation[]>(companyId ? `companies/${companyId}/b2b/locations` : null);
+  const { data: costCenters } = useApi<CostCenterOption[]>(companyId ? `companies/${companyId}/b2b/cost-centers` : null);
+  const baseMethods = methods ? (isCompany ? methods.deliveries.company : methods.deliveries.customer) : isCompany ? ['WALLET', 'CASH'] : ['CASH'];
+  const allowedMethods = baseMethods.filter((method) => method !== 'INVOICE' || !isCompany || b2b?.canInvoice);
   const methodLabels: Record<string, string> = {
-    INVOICE: 'Faturado (mensal)',
+    INVOICE: b2b?.contract ? `Faturado — contrato #${b2b.contract.number} (crédito ${formatBRL(b2b.availableCreditCents)})` : 'Faturado (mensal)',
     CASH: 'Dinheiro na coleta',
     WALLET: isCompany ? 'Saldo de vendas da loja' : `Créditos da carteira${credits ? ` (${formatBRL(credits.availableCents)})` : ''}`,
   };
   const [pickup, setPickup] = useState<StopForm>(emptyStop);
   const [dropoff, setDropoff] = useState<StopForm>(emptyStop);
-  const [pickupFromCompany, setPickupFromCompany] = useState(true);
-  const [item, setItem] = useState({ itemCategory: 'PACKAGE', itemDescription: '', weightKg: '', lengthCm: '', widthCm: '', heightCm: '', vehicleType: '', scheduledFor: '', notes: '', paymentMethod: isCompany ? 'INVOICE' : 'CASH' });
+  // Empresa: "company" (endereço da empresa), "custom" ou o id de uma unidade cadastrada.
+  const [pickupMode, setPickupMode] = useState('company');
+  const [dropoffMode, setDropoffMode] = useState('custom');
+  const [b2bFields, setB2bFields] = useState({ costCenterId: '', externalRef: '' });
+  const [item, setItem] = useState({ itemCategory: 'PACKAGE', itemDescription: '', weightKg: '', lengthCm: '', widthCm: '', heightCm: '', vehicleType: '', scheduledFor: '', notes: '', paymentMethod: isCompany ? 'WALLET' : 'CASH' });
+  // Com contrato ativo, o padrão da empresa passa a ser o faturado.
+  useEffect(() => {
+    if (isCompany && b2b?.canInvoice) setItem((current) => ({ ...current, paymentMethod: 'INVOICE' }));
+  }, [isCompany, b2b?.canInvoice]);
+  const pickupFromCompany = !isCompany || pickupMode === 'company';
   const [quote, setQuote] = useState<Quote | null>(null);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
 
   const payload = () => ({
-    ...(isCompany && pickupFromCompany ? {} : { pickup: toStop(pickup) }),
-    dropoff: toStop(dropoff),
+    ...(isCompany && pickupMode === 'company' ? {} : isCompany && pickupMode !== 'custom' ? { pickup: { locationId: pickupMode } } : { pickup: toStop(pickup) }),
+    dropoff: isCompany && dropoffMode !== 'custom' ? { locationId: dropoffMode } : toStop(dropoff),
     itemCategory: item.itemCategory,
     weightKg: item.weightKg ? Number(item.weightKg.replace(',', '.')) : undefined,
     lengthCm: item.lengthCm ? Number(item.lengthCm) : undefined,
@@ -161,6 +196,7 @@ export function DeliveryRequestForm({ basePath, isCompany, onCreated }: { basePa
         itemDescription: item.itemDescription || undefined,
         notes: item.notes || undefined,
         paymentMethod: item.paymentMethod,
+        ...(isCompany ? { costCenterId: b2bFields.costCenterId || undefined, externalRef: b2bFields.externalRef || undefined } : {}),
       });
       onCreated(created.id);
     });
@@ -171,13 +207,39 @@ export function DeliveryRequestForm({ basePath, isCompany, onCreated }: { basePa
         <Card title="Coleta e entrega">
           <div className="space-y-6">
             {isCompany && (
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" className="accent-brand-500" checked={pickupFromCompany} onChange={(e) => setPickupFromCompany(e.target.checked)} />
-                Coletar no endereço da empresa
-              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Select
+                  label="Coleta"
+                  value={pickupMode}
+                  onChange={(e) => setPickupMode(e.target.value)}
+                  options={[{ value: 'company', label: 'Endereço da empresa' }, ...(locations ?? []).map((location) => ({ value: location.id, label: `${location.name} — ${location.street}, ${location.number}` })), { value: 'custom', label: 'Outro endereço' }]}
+                />
+                <Select
+                  label="Destino"
+                  value={dropoffMode}
+                  hint={dropoffMode !== 'custom' ? 'Transferência para uma unidade cadastrada.' : undefined}
+                  onChange={(e) => setDropoffMode(e.target.value)}
+                  options={[{ value: 'custom', label: 'Endereço do destinatário' }, ...(locations ?? []).map((location) => ({ value: location.id, label: `${location.name} — ${location.street}, ${location.number}` }))]}
+                />
+              </div>
             )}
-            {!(isCompany && pickupFromCompany) && <StopFields title="Origem (coleta)" value={pickup} onChange={setPickup} addresses={addresses ?? []} allowSaved={!isCompany} />}
-            <StopFields title="Destino (entrega)" value={dropoff} onChange={setDropoff} addresses={addresses ?? []} allowSaved={!isCompany} />
+            {!pickupFromCompany && (!isCompany || pickupMode === 'custom') && <StopFields title="Origem (coleta)" value={pickup} onChange={setPickup} addresses={addresses ?? []} allowSaved={!isCompany} />}
+            {(!isCompany || dropoffMode === 'custom') && <StopFields title="Destino (entrega)" value={dropoff} onChange={setDropoff} addresses={addresses ?? []} allowSaved={!isCompany} />}
+            {isCompany && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Select
+                  label={b2b?.contract?.requireCostCenter ? 'Centro de custo (obrigatório)' : 'Centro de custo'}
+                  value={b2bFields.costCenterId}
+                  placeholder={b2b?.contract?.requireCostCenter ? 'Escolha' : 'Nenhum'}
+                  required={b2b?.contract?.requireCostCenter}
+                  onChange={(e) => setB2bFields({ ...b2bFields, costCenterId: e.target.value })}
+                  options={(costCenters ?? [])
+                    .filter((center) => center.isActive)
+                    .map((center) => ({ value: center.id, label: `${center.code} — ${center.name}${center.availableThisMonthCents != null ? ` (disponível ${formatBRL(center.availableThisMonthCents)})` : ''}` }))}
+                />
+                <Input label="Sua referência (pedido, nota)" maxLength={60} value={b2bFields.externalRef} onChange={(e) => setB2bFields({ ...b2bFields, externalRef: e.target.value })} />
+              </div>
+            )}
           </div>
         </Card>
         <Card title="O que será enviado">

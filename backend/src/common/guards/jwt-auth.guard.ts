@@ -1,9 +1,10 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { IS_PUBLIC_KEY } from '../decorators';
+import { ALLOW_API_KEY, IS_PUBLIC_KEY } from '../decorators';
 import { toAuthUser } from '../auth/auth-user';
 import { AccessService } from '../../modules/access/access.service';
+import { CompanyB2bService } from '../../modules/b2b/company-b2b.service';
 import { RequestContext } from '../request-context';
 
 export interface AccessTokenPayload {
@@ -30,12 +31,24 @@ export class JwtAuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly jwt: JwtService,
     private readonly access: AccessService,
+    private readonly apiKeys: CompanyB2bService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [context.getHandler(), context.getClass()]);
     const request = context.switchToHttp().getRequest();
     const token = extractBearer(request.headers.authorization);
+    const apiKey = request.headers['x-api-key'];
+
+    // Integrações de empresas: chave de API somente nas rotas marcadas com @AllowApiKey().
+    if (!token && typeof apiKey === 'string' && apiKey) {
+      const allowed = this.reflector.getAllAndOverride<boolean>(ALLOW_API_KEY, [context.getHandler(), context.getClass()]);
+      if (!allowed) throw new ForbiddenException('Esta rota não aceita chave de API.');
+      const user = await this.apiKeys.authenticate(apiKey);
+      request.user = user;
+      RequestContext.set({ userId: user.userId, tenantId: user.tenantId });
+      return true;
+    }
 
     if (!token) {
       if (isPublic) return true;

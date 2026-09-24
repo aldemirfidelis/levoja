@@ -1,3 +1,5 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { AUTH_SESSION_STARTED, AuthSessionStartedEvent } from '../../common/intelligence-events';
 import {
   BadRequestException,
   ConflictException,
@@ -70,6 +72,7 @@ export class AuthService {
     private readonly companies: CompaniesService,
     private readonly drivers: DriversService,
     private readonly config: AppConfig,
+    private readonly events: EventEmitter2,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -267,6 +270,17 @@ export class AuthService {
       tenantId: user.tenantId,
       metadata: { app: app ?? null },
     });
+    // Antifraude: registra o aparelho usado (várias contas no mesmo aparelho). A equipe fica de fora.
+    if (app !== 'ADMIN') {
+      this.events.emit(AUTH_SESSION_STARTED, {
+        tenantId: user.tenantId,
+        userId: user.id,
+        app: app ?? null,
+        deviceId: client.deviceId,
+        ip: client.ip,
+        userAgent: client.userAgent,
+      } satisfies AuthSessionStartedEvent);
+    }
     return { ...pair, user: this.users.toView(updated) };
   }
 

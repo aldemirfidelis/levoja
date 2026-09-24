@@ -4,15 +4,20 @@ Plataforma de **marketplace + delivery + logística sob demanda + SaaS B2B**. Co
 (restaurantes, farmácias, mercados, lojas...) e entregadores, e também atende entregas avulsas
 (pessoa → pessoa, empresa → cliente) e corporativas.
 
-> Status: **Fases 1 a 5 concluídas** — fundação (API, autenticação, RBAC, LGPD, auditoria), marketplace,
-> logística, financeiro e os aplicativos Android/iOS do cliente e do entregador. Veja o [roadmap](docs/roadmap.md).
+> Status: **Fases 1 a 8 concluídas** — fundação (API, autenticação, RBAC, LGPD, auditoria), marketplace,
+> logística, financeiro, os aplicativos Android/iOS do cliente e do entregador, a operação (torre de
+> controle, mapa de calor, relatórios, atendimento, chat e comunicados), o corporativo (contratos, tabelas
+> especiais, lotes por planilha/API com rotas, recorrências, centros de custo e faturamento mensal) e a
+> inteligência (antifraude com score e revisão humana, previsão de demanda e de entregadores, tempo de
+> entrega calibrado, anomalias, preço dinâmico com aprovação e IA assistiva).
+> Veja o [roadmap](docs/roadmap.md).
 
 ## Estrutura
 
 ```
 backend/          API REST + WebSocket (NestJS 11, Prisma 7, PostgreSQL 17)
 frontend/         Portal web (Next.js 16): site, cadastros, área do cliente, portal da empresa, onboarding do entregador
-admin/            Painel administrativo (Next.js 16): Super Admin, operação, análise de cadastros, auditoria
+admin/            Painel administrativo (Next.js 16): torre de controle, mapa de calor, relatórios, atendimento, comunicados, cadastros, auditoria
 mobile-client/    App do cliente (Expo SDK 57): lojas, sacola, PIX/cartão/créditos, rastreio ao vivo, envios avulsos
 mobile-driver/    App do entregador (Expo SDK 57): ofertas, rota, prova de entrega, GPS em segundo plano, fila offline, ganhos
 mobile-kit/       Kit dos apps: cliente HTTP com tokens no Keychain/Keystore, autenticação, tempo real, push, UI, telas de conta
@@ -84,19 +89,22 @@ npx expo run:android        # build de desenvolvimento local (necessário para p
 
 ```bash
 pnpm --filter @levoja/shared test          # contratos (CPF, CNPJ alfanumérico, máquinas de estado, dinheiro, geo)
-pnpm --filter @levoja/backend test         # unitários (criptografia, TOTP RFC 6238, horários, fluxo de aprovação, auditoria)
+pnpm --filter @levoja/backend test         # unitários (criptografia, TOTP RFC 6238, horários, fluxo de aprovação, auditoria, fusos/períodos, CSV)
 pnpm --filter @levoja/backend test:e2e     # E2E: API + PostgreSQL real (banco levoja_test)
 pnpm --filter @levoja/backend typecheck
 pnpm --filter @levoja/mobile-kit test      # cliente HTTP (renovação única de token) e fila offline
 pnpm --filter @levoja/mobile-client test   # agendamento dentro do horário da loja
-pnpm --filter @levoja/mobile-driver test   # status com ações offline e saneamento do GPS
+pnpm --filter @levoja/mobile-driver test   # status com ações offline, saneamento do GPS e GPS simulado
 pnpm --filter @levoja/mobile-client export:android   # bundle Android (Metro/Hermes) — também roda no CI
 ```
 
 Os testes E2E aplicam as migrations no banco `levoja_test` e usam identidades únicas por execução —
-podem ser repetidos sem limpar o banco. Cobrem as fases 1 a 5 (fundação, marketplace, logística,
-financeiro e os contratos usados pelos apps: push segmentado por app, login com MFA no app, detalhe da
-entrega do entregador).
+podem ser repetidos sem limpar o banco. Cobrem as fases 1 a 8 (fundação, marketplace, logística,
+financeiro, os contratos usados pelos apps, a operação — chat com privacidade, chamados e SLA, torre de
+controle, mapa de calor, relatórios/CSV, painéis, comunicados com consentimento e LGPD —, o corporativo:
+contratos, limites, lotes com rotas, recorrências, faturas e chaves de API — e a inteligência: antifraude,
+previsão, sugestões de preço, anomalias, calibração do tempo de entrega, avaliações e IA assistiva com um
+provedor simulado; os testes nunca chamam um provedor de IA real).
 
 ### Pagamentos em desenvolvimento (sandbox)
 
@@ -109,6 +117,45 @@ Com `PAYMENT_GATEWAY=sandbox` (padrão do `.env.example`):
 
 Em produção, `sandbox` é recusado na inicialização; use `PAYMENT_GATEWAY=none` (apenas dinheiro) ou
 `mercadopago` (com `MERCADOPAGO_ACCESS_TOKEN` e `MERCADOPAGO_WEBHOOK_SECRET`) e `PAYOUT_PROVIDER=manual`.
+
+### Operação e atendimento em desenvolvimento
+
+- **Ligação mascarada**: com `VOICE_PROVIDER=none` (padrão) o botão de ligar não aparece e o chat segue
+  disponível. Para ativar, use `VOICE_PROVIDER=twilio` com `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` e
+  `TWILIO_CALLER_ID` (número da plataforma) — ninguém vê o telefone da outra parte.
+- **Prazos e janelas**: SLA dos chamados (`support.sla`), janela do chat após o fim do pedido (`chat`) e
+  parâmetros da torre de controle (`operations`: fuso, tolerância de atraso, alertas, retenção) são
+  configurações da plataforma, editáveis sem deploy.
+- **Mapa de calor de entregadores**: alimentado por amostras agregadas a cada 5 minutos (contagem por
+  célula, sem identificar ninguém), mantidas por 180 dias por padrão.
+
+### Corporativo (B2B)
+
+- **Contratos** são criados no painel (Corporativo) como rascunho e ativados pelo comercial; só então a
+  empresa pode usar o **faturado**, dentro do limite de crédito. Sem contrato, lotes e recorrências usam a
+  carteira.
+- **Lotes**: baixe o modelo no portal (Corporativo → Lotes) ou envie JSON para
+  `POST /v1/companies/{id}/delivery-batches`. Com `GEOCODER=none`, informe latitude/longitude nas linhas.
+- **Integração**: chaves de API são criadas no portal (Corporativo → Integração) e enviadas no cabeçalho
+  `X-Api-Key`; só valem nas rotas de entregas e lotes da empresa.
+- **Fatura mensal**: emitida às 03h15 do dia de fechamento do contrato; o painel permite fechar o período
+  antes (Contrato → Fechar período agora) e dar baixa manual.
+- Parâmetros de lotes, rotas e recorrências ficam na configuração `b2b` (editável no painel).
+
+### Inteligência
+
+- **Antifraude** (painel → Antifraude): outros módulos registram sinais com a evidência; o score da conta
+  (0–100, com meia-vida) define o nível e abre casos para revisão. As regras, pontos e ações automáticas
+  ficam na configuração `fraud` (editável em Antifraude → Regras e score). Nada é bloqueado sem uma pessoa.
+- **Aparelho**: os apps enviam `X-Device-Id` (id de instalação guardado no armazenamento seguro) e o
+  portal/painel usam um cookie httpOnly próprio; a API guarda só o hash.
+- **Previsão, anomalias e tempo de entrega** (painel → Inteligência) são recalculados por agendamento
+  (a cada hora, a cada 10 minutos e toda madrugada) e têm botão para rodar na hora. Parâmetros na
+  configuração `intelligence`.
+- **IA assistiva**: `AI_PROVIDER=none` (padrão) mantém tudo funcionando sem modelo de linguagem —
+  rascunhos por modelo de texto, avaliações pelo léxico e o assistente das lojas só com indicadores.
+  Com `AI_PROVIDER=anthropic` e `ANTHROPIC_API_KEY`, usa o Claude (`AI_MODEL`, padrão `claude-opus-5`)
+  com fallback no servidor em caso de recusa. Recursos e limite diário na configuração `ai`.
 
 ## Principais decisões
 

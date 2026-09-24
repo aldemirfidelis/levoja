@@ -56,6 +56,13 @@ describe('Motor de precificação', () => {
     expect(computePrice(rule({ demandSurchargeMaxBps: 5000 }), { ...base, demandPressure: 0.75 }).totalCents).toBe(1100 + 275);
   });
 
+  it('adicional programado (pico previsto) incide sobre o subtotal', () => {
+    const quote = computePrice(rule(), { ...base, scheduledSurchargeBps: 1500 });
+    expect(quote.totalCents).toBe(1100 + 165);
+    expect(quote.lines.at(-1)).toEqual({ label: 'Adicional de alta demanda', cents: 165 });
+    expect(computePrice(rule(), { ...base, scheduledSurchargeBps: 0 }).totalCents).toBe(1100);
+  });
+
   it('janelas que atravessam a meia-noite', () => {
     const quote = computePrice(rule({ timeWindows: [{ weekdays: [1], from: '23:00', to: '02:00', surchargeBps: 1000 }] }), {
       ...base,

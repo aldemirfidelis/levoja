@@ -26,6 +26,11 @@ export class RealtimeService {
     this.server?.to(`ops:${tenantId}`).emit(event, payload);
   }
 
+  /** Equipe de atendimento (quem pode ver chamados). */
+  toSupport(tenantId: string, event: string, payload: unknown): void {
+    this.server?.to(`support:${tenantId}`).emit(event, payload);
+  }
+
   toRoom(room: string, event: string, payload: unknown): void {
     this.server?.to(room).emit(event, payload);
   }

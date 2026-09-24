@@ -7,13 +7,16 @@ import { CryptoService } from '../../infra/crypto/crypto.service';
 import { StorageService } from '../../infra/storage/storage.service';
 import { AuditService } from '../audit/audit.service';
 import { MapsService } from '../geo/maps.service';
-import { PricingService } from '../pricing/pricing.service';
+import { PricingService, QuoteInput } from '../pricing/pricing.service';
+import type { PriceQuote } from '../pricing/pricing.engine';
 import { SettingsService } from '../settings/settings.service';
+import { RISK_SIGNAL, RiskSignalEvent } from '../../common/intelligence-events';
+import type { EtaModel } from '../../common/eta-model';
 import { paginated, skipOf } from '../../common/pagination';
 import type { AuthUser } from '../../common/auth/auth-user';
 import { CreateDeliveryDto, DeliveriesQueryDto, DeliveryQuoteDto, StopDto } from './deliveries.dto';
 import { Prisma } from '../../generated/prisma/client';
-import type { ActorType, DeliveryStatus, PaymentMethod, VehicleType } from '../../generated/prisma/enums';
+import type { ActorType, DeliveryStatus, ItemCategory, PaymentMethod, ProofMethod, VehicleType } from '../../generated/prisma/enums';
 
 export const DELIVERY_STATUS_CHANGED = 'delivery.status.changed';
 
@@ -30,6 +33,52 @@ export interface DeliveryStatusChangedEvent {
   to: DeliveryStatus;
   actorType: ActorType;
   reason?: string;
+  /** Entregas de lote (notificações agrupadas por lote, não por entrega). */
+  batchId?: string | null;
+}
+
+/** Regras corporativas (módulo B2B): preço do contrato, limites e locais cadastrados. */
+export interface CorporateHook {
+  /** Preço pela tabela especial/desconto do contrato ativo; null = tabela padrão. */
+  price(input: { tenantId: string; companyId: string; context: Omit<QuoteInput, 'target' | 'tenantId'> }): Promise<{ fee: PriceQuote; contractId: string } | null>;
+  /** Contrato obrigatório para faturado, limite de crédito, bloqueio por atraso, centro de custo e orçamento. */
+  validate(input: { tenantId: string; companyId: string; paymentMethod: PaymentMethod; amountCents: number; costCenterId?: string | null; tx?: Tx }): Promise<{ contractId: string | null; costCenterId: string | null }>;
+  location(companyId: string, locationId: string): Promise<StopSnapshot>;
+}
+
+/** Entrega avulsa já cotada, pronta para gravar (entrega única, lote ou recorrência). */
+export interface PreparedDelivery {
+  tenantId: string;
+  requesterUserId: string;
+  companyId: string | null;
+  customerId?: string | null;
+  pickup: StopSnapshot;
+  dropoff: StopSnapshot;
+  vehicleType: VehicleType;
+  distanceKm: number;
+  durationMin: number;
+  feeCents: number;
+  payoutCents: number;
+  tipCents?: number;
+  scheduledFor: Date | null;
+  itemCategory: ItemCategory;
+  itemDescription?: string | null;
+  weightKg?: number | null;
+  lengthCm?: number | null;
+  widthCm?: number | null;
+  heightCm?: number | null;
+  declaredValueCents?: number | null;
+  notes?: string | null;
+  paymentMethod: PaymentMethod;
+  proofMethod?: ProofMethod | null;
+  contractId?: string | null;
+  costCenterId?: string | null;
+  externalRef?: string | null;
+  batchId?: string | null;
+  routeId?: string | null;
+  routeSequence?: number | null;
+  recurrenceId?: string | null;
+  actorType: ActorType;
 }
 
 export interface OnDemandPaymentHook {
@@ -84,6 +133,7 @@ const MIN_SCHEDULE_MINUTES = 30;
 @Injectable()
 export class DeliveriesService {
   private onDemandPayment?: OnDemandPaymentHook;
+  private corporate?: CorporateHook;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -108,10 +158,15 @@ export class DeliveriesService {
     return VEHICLE_RANK[byVolume] > VEHICLE_RANK[byWeight] ? byVolume : byWeight;
   }
 
-  private async resolveStop(user: AuthUser, stop: StopDto | undefined, fallback?: StopSnapshot | null): Promise<StopSnapshot> {
+  private async resolveStop(user: AuthUser, stop: StopDto | undefined, fallback?: StopSnapshot | null, companyId?: string): Promise<StopSnapshot> {
     if (!stop) {
       if (fallback) return fallback;
       throw new BadRequestException('Informe o endereço de coleta.');
+    }
+    if (stop.locationId) {
+      if (!companyId || !this.corporate) throw new BadRequestException('Locais cadastrados são exclusivos para entregas de empresas.');
+      const location = await this.corporate.location(companyId, stop.locationId);
+      return { ...location, name: stop.contactName ?? location.name, phone: stop.contactPhone ?? location.phone };
     }
     if (stop.addressId) {
       const address = await this.prisma.address.findFirst({ where: { id: stop.addressId, userId: user.userId, deletedAt: null } });
@@ -175,8 +230,8 @@ export class DeliveriesService {
   }
 
   async quote(user: AuthUser, dto: DeliveryQuoteDto, companyId?: string) {
-    const pickup = await this.resolveStop(user, dto.pickup, companyId ? await this.companyStop(companyId) : null);
-    const dropoff = await this.resolveStop(user, dto.dropoff);
+    const pickup = await this.resolveStop(user, dto.pickup, companyId && !dto.pickup ? await this.companyStop(companyId) : null, companyId);
+    const dropoff = await this.resolveStop(user, dto.dropoff, null, companyId);
     const required = this.requiredVehicle(dto.weightKg, dto);
     if (dto.vehicleType && VEHICLE_RANK[dto.vehicleType] < VEHICLE_RANK[required]) {
       throw new BadRequestException(`Para esta carga é necessário no mínimo: ${required}.`);
@@ -197,11 +252,18 @@ export class DeliveriesService {
       state: pickup.state,
       at: scheduledFor ?? new Date(),
     };
-    const [fee, payout] = await Promise.all([
-      this.pricing.quote({ ...context, target: 'CUSTOMER_FEE' }),
+    const { tenantId: _tenant, ...corporateContext } = context;
+    const [corporate, payout] = await Promise.all([
+      companyId && this.corporate ? this.corporate.price({ tenantId: user.tenantId, companyId, context: corporateContext }) : Promise.resolve(null),
       this.pricing.quote({ ...context, target: 'DRIVER_PAYOUT' }),
     ]);
-    return { pickup, dropoff, vehicleType, scheduledFor, distanceKm: route.distanceKm, durationMin: route.durationMin, fee, payout };
+    const fee = corporate?.fee ?? (await this.pricing.quote({ ...context, target: 'CUSTOMER_FEE' }));
+    return { pickup, dropoff, vehicleType, scheduledFor, distanceKm: route.distanceKm, durationMin: route.durationMin, fee, payout, contractId: corporate?.contractId ?? null };
+  }
+
+  /** Preço e limites corporativos (registrados pelo módulo B2B). */
+  registerCorporateHook(hook: CorporateHook): void {
+    this.corporate = hook;
   }
 
   async quoteView(user: AuthUser, dto: DeliveryQuoteDto, companyId?: string) {
@@ -247,72 +309,130 @@ export class DeliveriesService {
       throw new UnprocessableEntityException(`Formas aceitas: ${allowed.map((method) => labels[method] ?? method).join(', ')}.`);
     }
     if (dto.paymentMethod === 'WALLET' && !companyId && !user.customerId) throw new ForbiddenException('Perfil de cliente não encontrado.');
+    if (!companyId && (dto.costCenterId || dto.pickup?.locationId || dto.dropoff.locationId)) {
+      throw new BadRequestException('Centros de custo e locais cadastrados são exclusivos para empresas.');
+    }
     if (companyId) {
       const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { status: true } });
       if (company?.status !== 'APPROVED') throw new ForbiddenException('A empresa precisa estar aprovada para solicitar entregas.');
     }
     const quote = await this.quote(user, dto, companyId);
-
+    const tipCents = dto.tipCents ?? 0;
     if (quote.scheduledFor) await this.assertSlotCapacity(user.tenantId, quote.scheduledFor);
 
     const delivery = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.delivery.create({
-        data: {
-          tenantId: user.tenantId,
-          code: await this.uniqueCode(tx),
-          kind: 'ON_DEMAND',
-          requesterUserId: user.userId,
-          companyId: companyId ?? null,
-          status: quote.scheduledFor ? 'SCHEDULED' : 'PENDING',
-          scheduledFor: quote.scheduledFor,
-          pickup: quote.pickup as unknown as Prisma.InputJsonValue,
-          dropoff: quote.dropoff as unknown as Prisma.InputJsonValue,
-          pickupLat: quote.pickup.lat,
-          pickupLng: quote.pickup.lng,
-          dropoffLat: quote.dropoff.lat,
-          dropoffLng: quote.dropoff.lng,
-          city: quote.pickup.city,
-          state: quote.pickup.state,
-          itemCategory: dto.itemCategory,
-          itemDescription: dto.itemDescription,
-          weightKg: dto.weightKg,
-          lengthCm: dto.lengthCm,
-          widthCm: dto.widthCm,
-          heightCm: dto.heightCm,
-          declaredValueCents: dto.declaredValueCents,
-          notes: dto.notes,
-          vehicleType: quote.vehicleType,
-          distanceKm: quote.distanceKm,
-          durationMin: quote.durationMin,
-          feeCents: quote.fee.totalCents,
-          payoutCents: quote.payout.totalCents,
-          tipCents: dto.tipCents ?? 0,
-          paymentMethod: dto.paymentMethod,
-          proofMethod: dto.proofMethod ?? (dto.itemCategory === 'DOCUMENT' ? 'SIGNATURE' : 'CODE'),
-          dropoffCode: this.crypto.numericCode(4),
-          statusHistory: { create: { toStatus: quote.scheduledFor ? 'SCHEDULED' : 'PENDING', actorType: companyId ? 'COMPANY' : 'CUSTOMER', actorId: user.userId } },
-        },
+      // Limites corporativos conferidos dentro da transação (com trava por empresa).
+      const corporate =
+        companyId && this.corporate
+          ? await this.corporate.validate({ tenantId: user.tenantId, companyId, paymentMethod: dto.paymentMethod, amountCents: quote.fee.totalCents + tipCents, costCenterId: dto.costCenterId, tx })
+          : { contractId: null, costCenterId: null };
+      return this.insertPrepared(tx, {
+        tenantId: user.tenantId,
+        requesterUserId: user.userId,
+        companyId: companyId ?? null,
+        customerId: user.customerId,
+        pickup: quote.pickup,
+        dropoff: quote.dropoff,
+        vehicleType: quote.vehicleType,
+        distanceKm: quote.distanceKm,
+        durationMin: quote.durationMin,
+        feeCents: quote.fee.totalCents,
+        payoutCents: quote.payout.totalCents,
+        tipCents,
+        scheduledFor: quote.scheduledFor,
+        itemCategory: dto.itemCategory,
+        itemDescription: dto.itemDescription,
+        weightKg: dto.weightKg,
+        lengthCm: dto.lengthCm,
+        widthCm: dto.widthCm,
+        heightCm: dto.heightCm,
+        declaredValueCents: dto.declaredValueCents,
+        notes: dto.notes,
+        paymentMethod: dto.paymentMethod,
+        proofMethod: dto.proofMethod,
+        contractId: quote.contractId ?? corporate.contractId,
+        costCenterId: corporate.costCenterId,
+        externalRef: dto.externalRef,
+        actorType: companyId ? 'COMPANY' : 'CUSTOMER',
       });
-      if (dto.paymentMethod === 'WALLET') {
-        if (!this.onDemandPayment) throw new UnprocessableEntityException('Pagamento com carteira indisponível.');
-        await this.onDemandPayment.chargeWallet(tx, {
-          tenantId: user.tenantId,
-          owner: companyId ? { type: 'COMPANY', companyId } : { type: 'CUSTOMER', customerId: user.customerId! },
-          payerUserId: user.userId,
-          deliveryId: created.id,
-          code: created.code,
-          amountCents: created.feeCents + created.tipCents,
-        });
-        await tx.delivery.update({ where: { id: created.id }, data: { paymentStatus: 'PAID' } });
-      }
-      await this.audit.log(
-        { action: 'delivery.create', entityType: 'Delivery', entityId: created.id, after: { code: created.code, feeCents: created.feeCents, companyId, paymentMethod: dto.paymentMethod } },
-        tx,
-      );
-      return created;
     });
     this.emit(delivery, null, delivery.status, companyId ? 'COMPANY' : 'CUSTOMER');
     return delivery;
+  }
+
+  /**
+   * Grava uma entrega avulsa já cotada (na transação informada), cobrando a carteira quando for o caso.
+   * Quem chama emite o evento de status (`emit`) depois que a transação terminar.
+   */
+  async insertPrepared(tx: Tx, input: PreparedDelivery) {
+    const status: DeliveryStatus = input.scheduledFor ? 'SCHEDULED' : 'PENDING';
+    const created = await tx.delivery.create({
+      data: {
+        tenantId: input.tenantId,
+        code: await this.uniqueCode(tx),
+        kind: 'ON_DEMAND',
+        requesterUserId: input.requesterUserId,
+        companyId: input.companyId,
+        status,
+        scheduledFor: input.scheduledFor,
+        pickup: input.pickup as unknown as Prisma.InputJsonValue,
+        dropoff: input.dropoff as unknown as Prisma.InputJsonValue,
+        pickupLat: input.pickup.lat,
+        pickupLng: input.pickup.lng,
+        dropoffLat: input.dropoff.lat,
+        dropoffLng: input.dropoff.lng,
+        city: input.pickup.city,
+        state: input.pickup.state,
+        itemCategory: input.itemCategory,
+        itemDescription: input.itemDescription,
+        weightKg: input.weightKg,
+        lengthCm: input.lengthCm,
+        widthCm: input.widthCm,
+        heightCm: input.heightCm,
+        declaredValueCents: input.declaredValueCents,
+        notes: input.notes,
+        vehicleType: input.vehicleType,
+        distanceKm: input.distanceKm,
+        durationMin: input.durationMin,
+        feeCents: input.feeCents,
+        payoutCents: input.payoutCents,
+        tipCents: input.tipCents ?? 0,
+        paymentMethod: input.paymentMethod,
+        proofMethod: input.proofMethod ?? (input.itemCategory === 'DOCUMENT' ? 'SIGNATURE' : 'CODE'),
+        dropoffCode: this.crypto.numericCode(4),
+        contractId: input.contractId,
+        costCenterId: input.costCenterId,
+        externalRef: input.externalRef,
+        batchId: input.batchId,
+        routeId: input.routeId,
+        routeSequence: input.routeSequence,
+        recurrenceId: input.recurrenceId,
+        statusHistory: { create: { toStatus: status, actorType: input.actorType, actorId: input.requesterUserId } },
+      },
+    });
+    if (input.paymentMethod === 'WALLET') {
+      if (!this.onDemandPayment) throw new UnprocessableEntityException('Pagamento com carteira indisponível.');
+      if (!input.companyId && !input.customerId) throw new ForbiddenException('Perfil de cliente não encontrado.');
+      await this.onDemandPayment.chargeWallet(tx, {
+        tenantId: input.tenantId,
+        owner: input.companyId ? { type: 'COMPANY', companyId: input.companyId } : { type: 'CUSTOMER', customerId: input.customerId! },
+        payerUserId: input.requesterUserId,
+        deliveryId: created.id,
+        code: created.code,
+        amountCents: created.feeCents + created.tipCents,
+      });
+      await tx.delivery.update({ where: { id: created.id }, data: { paymentStatus: 'PAID' } });
+    }
+    await this.audit.log(
+      {
+        action: 'delivery.create',
+        entityType: 'Delivery',
+        entityId: created.id,
+        after: { code: created.code, feeCents: created.feeCents, companyId: input.companyId, paymentMethod: input.paymentMethod, batchId: input.batchId ?? undefined, contractId: input.contractId ?? undefined },
+      },
+      tx,
+    );
+    return created;
   }
 
   /** Reserva de capacidade: limita entregas agendadas por janela de 30 minutos. */
@@ -452,7 +572,13 @@ export class DeliveriesService {
     return updated;
   }
 
-  emit(delivery: { id: string; tenantId: string; code: string; kind: 'ORDER' | 'ON_DEMAND'; orderId: string | null; companyId: string | null; requesterUserId: string; driverId: string | null }, from: DeliveryStatus | null, to: DeliveryStatus, actorType: ActorType, reason?: string) {
+  emit(
+    delivery: { id: string; tenantId: string; code: string; kind: 'ORDER' | 'ON_DEMAND'; orderId: string | null; companyId: string | null; requesterUserId: string; driverId: string | null; batchId?: string | null },
+    from: DeliveryStatus | null,
+    to: DeliveryStatus,
+    actorType: ActorType,
+    reason?: string,
+  ) {
     this.events.emit(DELIVERY_STATUS_CHANGED, {
       deliveryId: delivery.id,
       tenantId: delivery.tenantId,
@@ -466,6 +592,7 @@ export class DeliveriesService {
       to,
       actorType,
       reason,
+      batchId: delivery.batchId ?? null,
     } satisfies DeliveryStatusChangedEvent);
   }
 
@@ -500,11 +627,34 @@ export class DeliveriesService {
     if (delivery.requiresIdCheck && !input.idChecked) throw new BadRequestException('Confira o documento do recebedor (idade mínima) antes de concluir.');
 
     // Antifraude: a conclusão precisa acontecer perto do destino.
-    const driver = await this.prisma.driver.findUniqueOrThrow({ where: { id: delivery.driverId! }, select: { lastLat: true, lastLng: true } });
-    const { proofMaxDistanceMeters } = await this.settings.get(user.tenantId, 'dispatch');
+    const driver = await this.prisma.driver.findUniqueOrThrow({ where: { id: delivery.driverId! }, select: { lastLat: true, lastLng: true, lastLocationMocked: true } });
+    const [{ proofMaxDistanceMeters }, fraud] = await Promise.all([this.settings.get(user.tenantId, 'dispatch'), this.settings.get(user.tenantId, 'fraud')]);
+    if (driver.lastLocationMocked && fraud.enabled && fraud.rejectMockedProof) {
+      this.events.emit(RISK_SIGNAL, {
+        tenantId: user.tenantId,
+        userId: user.userId,
+        type: 'MOCK_LOCATION',
+        message: `Tentativa de concluir a entrega ${delivery.code} com localização simulada.`,
+        deliveryId: delivery.id,
+        dedupeKey: `mock-proof:${delivery.id}`,
+      } satisfies RiskSignalEvent);
+      throw new ConflictException('O aparelho está informando uma localização simulada. Desative apps de GPS falso e a opção "local fictício" para concluir a entrega.');
+    }
     if (driver.lastLat != null && driver.lastLng != null) {
       const meters = haversineKm({ lat: driver.lastLat, lng: driver.lastLng }, { lat: delivery.dropoffLat, lng: delivery.dropoffLng }) * 1000;
-      if (meters > proofMaxDistanceMeters) throw new ConflictException(`Você está a ${Math.round(meters)} m do destino. Conclua a entrega no local.`);
+      if (meters > proofMaxDistanceMeters) {
+        // Um sinal por entrega: tentativas repetidas não multiplicam a pontuação.
+        this.events.emit(RISK_SIGNAL, {
+          tenantId: user.tenantId,
+          userId: user.userId,
+          type: 'PROOF_FAR_FROM_DROPOFF',
+          message: `Tentou concluir a entrega ${delivery.code} a ${Math.round(meters)} m do destino.`,
+          details: { meters: Math.round(meters), driverLat: driver.lastLat, driverLng: driver.lastLng },
+          deliveryId: delivery.id,
+          dedupeKey: `proof-far:${delivery.id}`,
+        } satisfies RiskSignalEvent);
+        throw new ConflictException(`Você está a ${Math.round(meters)} m do destino. Conclua a entrega no local.`);
+      }
     }
 
     const fileKey = file ? await this.storage.put(`private/deliveries/${delivery.id}/proof-${Date.now()}.${file.ext}`, file.buffer, file.mime) : null;
@@ -642,18 +792,33 @@ export class DeliveriesService {
     return paginated(rows.map(view), total, query);
   }
 
-  /** Previsão de chegada ao destino a partir da posição atual do entregador. */
+  private etaModel: EtaModel | null = null;
+
+  /** O módulo de inteligência registra a calibração aprendida com o histórico. */
+  registerEtaModel(model: EtaModel): void {
+    this.etaModel = model;
+  }
+
+  /**
+   * Previsão de chegada ao destino a partir da posição atual do entregador. Com histórico, o
+   * trajeto é corrigido pelo fator real da cidade/veículo/horário e as esperas usam as medianas.
+   */
   eta(delivery: DeliveryWithRelations): Date | null {
     if (['DELIVERED', 'FAILED', 'CANCELED'].includes(delivery.status)) return null;
+    const calibration = this.etaModel?.calibration({ tenantId: delivery.tenantId, city: delivery.city, state: delivery.state, vehicleType: delivery.vehicleType });
+    const factor = calibration?.transitFactor ?? 1;
     const driver = delivery.driver;
     const speedKmh = 22;
-    if (!driver?.lastLat || !driver.lastLng) return new Date(Date.now() + (delivery.durationMin + 10) * 60_000);
+    if (!driver?.lastLat || !driver.lastLng) {
+      const waiting = (calibration?.dispatchMinutes ?? 5) + (calibration?.pickupMinutes ?? 5);
+      return new Date(Date.now() + (delivery.durationMin * factor + waiting) * 60_000);
+    }
     const here = { lat: driver.lastLat, lng: driver.lastLng };
     const pickup = { lat: delivery.pickupLat, lng: delivery.pickupLng };
     const dropoff = { lat: delivery.dropoffLat, lng: delivery.dropoffLng };
     const beforePickup = ['DRIVER_ASSIGNED', 'AT_PICKUP'].includes(delivery.status);
     const km = (beforePickup ? haversineKm(here, pickup) + haversineKm(pickup, dropoff) : haversineKm(here, dropoff)) * 1.35;
-    return new Date(Date.now() + ((km / speedKmh) * 60 + (beforePickup ? 5 : 0)) * 60_000);
+    return new Date(Date.now() + ((km / speedKmh) * 60 * factor + (beforePickup ? 5 : 0)) * 60_000);
   }
 
   private base(delivery: DeliveryWithRelations) {
@@ -666,6 +831,14 @@ export class DeliveriesService {
       scheduledFor: delivery.scheduledFor,
       order: delivery.order ? { id: delivery.order.id, number: delivery.order.number } : null,
       company: delivery.company ? { id: delivery.company.id, tradeName: delivery.company.tradeName } : null,
+      // Corporativo (Fase 7)
+      externalRef: delivery.externalRef,
+      costCenterId: delivery.costCenterId,
+      contractId: delivery.contractId,
+      batchId: delivery.batchId,
+      routeId: delivery.routeId,
+      routeSequence: delivery.routeSequence,
+      invoiceId: delivery.invoiceId,
       pickup: delivery.pickup as unknown as StopSnapshot,
       dropoff: delivery.dropoff as unknown as StopSnapshot,
       itemCategory: delivery.itemCategory,

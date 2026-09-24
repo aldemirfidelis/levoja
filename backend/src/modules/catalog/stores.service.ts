@@ -3,6 +3,7 @@ import { LatLng } from '@levoja/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { StorageService } from '../../infra/storage/storage.service';
 import { isWithinOpeningHours } from '../../common/opening-hours';
+import { formatLocalDate } from '../../common/time-range';
 import { paginated } from '../../common/pagination';
 import type { AuthUser } from '../../common/auth/auth-user';
 import { CatalogService, productInclude } from './catalog.service';
@@ -116,6 +117,14 @@ export class StoresService {
     return paginated(rows.slice(start, start + query.pageSize), rows.length, query);
   }
 
+  /** Visitas diárias à loja (base da taxa de conversão) — contagem agregada, sem identificar o visitante. */
+  private countVisit(companyId: string, timeZone: string) {
+    const day = formatLocalDate(new Date(), timeZone);
+    this.prisma.$executeRaw`
+      INSERT INTO store_visits_daily ("companyId", day, visits) VALUES (${companyId}::uuid, ${day}::date, 1)
+      ON CONFLICT ("companyId", day) DO UPDATE SET visits = store_visits_daily.visits + 1`.catch(() => undefined);
+  }
+
   async detail(tenantId: string, idOrSlug: string) {
     const isUuid = /^[0-9a-f-]{36}$/i.test(idOrSlug);
     const company = await this.prisma.company.findFirst({
@@ -133,6 +142,7 @@ export class StoresService {
       },
     });
     if (!company) throw new NotFoundException('Loja não encontrada.');
+    this.countVisit(company.id, company.timezone);
     const products = company.products.map((product) => this.catalog.toView(product));
     return {
       id: company.id,

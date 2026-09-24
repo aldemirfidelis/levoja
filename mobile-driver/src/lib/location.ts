@@ -36,6 +36,8 @@ export function toPoints(locations: Location.LocationObject[]): LocationPoint[] 
       speed: location.coords.speed != null && location.coords.speed >= 0 ? Math.min(100, location.coords.speed) : undefined,
       heading: location.coords.heading != null && location.coords.heading >= 0 ? Math.min(360, location.coords.heading) : undefined,
       recordedAt: new Date(location.timestamp).toISOString(),
+      // Android informa leituras de "localização simulada" (apps de GPS falso): a API trata como indício de fraude.
+      ...(location.mocked ? { mocked: true } : {}),
     }));
 }
 

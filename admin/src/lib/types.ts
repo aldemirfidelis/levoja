@@ -223,4 +223,74 @@ export interface Dashboard {
   pendingDocuments: { companies: number; drivers: number };
   privacyRequestsOpen: number;
   recentActivity: { id: string; action: string; entityType: string | null; createdAt: string; actor: { name: string } | null }[];
+  business: {
+    timeZone: string;
+    today: { orders: number; gmvCents: number; averageTicketCents: number | null; canceledOrders: number; deliveriesCompleted: number; deliveriesCanceled: number } | null;
+    last30Days: { orders: number; gmvCents: number; cancellationRate: number | null; commissionCents?: number; feesCents?: number; netRevenueCents?: number } | null;
+    driversNow: { online: number; busy: number };
+    tickets: { open: number; slaBreached: number } | null;
+    ratings: Record<'companies' | 'drivers' | 'customers', { average: number | null; count: number }>;
+  };
+}
+
+// -----------------------------------------------------------------------------
+// Central de atendimento
+// -----------------------------------------------------------------------------
+
+export type TicketStatus = 'OPEN' | 'IN_PROGRESS' | 'WAITING_REQUESTER' | 'RESOLVED' | 'CLOSED';
+export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+export type SlaState = 'ok' | 'risk' | 'breached' | 'done';
+
+export interface TicketListItem {
+  id: string;
+  number: number;
+  category: string;
+  priority: TicketPriority;
+  status: TicketStatus;
+  subject: string;
+  requesterName: string;
+  assignee: string | null;
+  sla: { state: SlaState; dueAt: string };
+  slaBreached: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TicketAttachment {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  internal: boolean;
+  createdAt: string;
+}
+
+export interface TicketDetail extends Omit<TicketListItem, 'requesterName' | 'assignee'> {
+  description: string;
+  requester: { id: string; name: string; email: string; phone: string | null };
+  requesterRole: 'CUSTOMER' | 'DRIVER' | 'COMPANY';
+  companyId: string | null;
+  assignee: { id: string; name: string } | null;
+  firstResponseDueAt: string;
+  resolutionDueAt: string;
+  firstRespondedAt: string | null;
+  resolvedAt: string | null;
+  rating: number | null;
+  ratingComment: string | null;
+  orderId: string | null;
+  deliveryId: string | null;
+  order: { id: string; number: number; status: string; totalCents: number; company: { tradeName: string } } | null;
+  delivery: { id: string; code: string; status: string } | null;
+  payment: { id: string; method: string; status: string; amountCents: number } | null;
+  messages: { id: string; body: string; internal: boolean; authorRole: string; authorName: string; createdAt: string }[];
+  attachments: TicketAttachment[];
+  events: { id: string; type: string; fromValue: string | null; toValue: string | null; actorName: string; createdAt: string }[];
+}
+
+export interface TicketStats {
+  byStatus: Partial<Record<TicketStatus, number>>;
+  breachedOpen: number;
+  unassigned: number;
+  mine: number;
+  last30Days: { opened: number; avgFirstResponseMinutes: number | null; avgResolutionMinutes: number | null; slaCompliance: number | null; csat: number | null; ratings: number };
 }

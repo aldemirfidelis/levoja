@@ -40,4 +40,11 @@ describe('pontos de GPS', () => {
     expect(point.speed).toBe(100);
     expect(point.heading).toBe(360);
   });
+
+  it('marca leituras de localização simulada (Android)', () => {
+    const [mocked] = toPoints([{ ...(reading({}) as object), mocked: true } as never]);
+    const [real] = toPoints([reading({})]);
+    expect(mocked.mocked).toBe(true);
+    expect(real).not.toHaveProperty('mocked');
+  });
 });

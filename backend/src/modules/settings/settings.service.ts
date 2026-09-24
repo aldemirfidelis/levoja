@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
+import { RISK_SIGNAL_TYPES, type RiskSignalType } from '@levoja/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { CacheService } from '../../infra/cache/cache.service';
 import { AuditService } from '../audit/audit.service';
@@ -82,6 +83,177 @@ export const SETTINGS = {
       maxDriverCashDebtCents: 30_000,
       pixKeyChangeHoldHours: 24,
     },
+  },
+  'support.sla': {
+    description: 'Atendimento: prazos (minutos) de primeira resposta e de resolução por prioridade',
+    schema: z.record(
+      z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
+      z.object({ firstResponseMinutes: z.number().int().min(5).max(20_160), resolutionMinutes: z.number().int().min(15).max(43_200) }),
+    ),
+    default: {
+      LOW: { firstResponseMinutes: 1440, resolutionMinutes: 4320 },
+      MEDIUM: { firstResponseMinutes: 240, resolutionMinutes: 1440 },
+      HIGH: { firstResponseMinutes: 60, resolutionMinutes: 480 },
+      URGENT: { firstResponseMinutes: 15, resolutionMinutes: 120 },
+    } as Record<'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT', { firstResponseMinutes: number; resolutionMinutes: number }>,
+  },
+  chat: {
+    description: 'Chat: por quanto tempo (minutos) as conversas seguem abertas após o fim do pedido/entrega',
+    schema: z.object({ withStoreAfterMinutes: z.number().int().min(0).max(43_200), withDriverAfterMinutes: z.number().int().min(0).max(1440) }),
+    default: { withStoreAfterMinutes: 1440, withDriverAfterMinutes: 60 },
+  },
+  operations: {
+    description: 'Operação: fuso dos indicadores, tolerância de atraso, alertas da torre de controle e retenção das amostras',
+    schema: z.object({
+      timeZone: z.string().refine((value) => {
+        try {
+          new Intl.DateTimeFormat('pt-BR', { timeZone: value });
+          return true;
+        } catch {
+          return false;
+        }
+      }, 'Fuso horário inválido'),
+      /** Entrega avulsa: prazo prometido = início + duração estimada da rota + esta folga. */
+      deliveryPromiseBufferMinutes: z.number().int().min(0).max(240),
+      lateToleranceMinutes: z.number().int().min(0).max(120),
+      stalledDispatchMinutes: z.number().int().min(1).max(120),
+      staleLocationMinutes: z.number().int().min(1).max(60),
+      acceptWarningMinutes: z.number().int().min(1).max(120),
+      presenceRetentionDays: z.number().int().min(7).max(730),
+    }),
+    default: {
+      timeZone: 'America/Sao_Paulo',
+      deliveryPromiseBufferMinutes: 30,
+      lateToleranceMinutes: 10,
+      stalledDispatchMinutes: 5,
+      staleLocationMinutes: 3,
+      acceptWarningMinutes: 5,
+      presenceRetentionDays: 180,
+    },
+  },
+  b2b: {
+    description: 'B2B: tamanho dos lotes, rotas (paradas por rota, trecho máximo, tempo por parada), antecedência e recorrências',
+    schema: z.object({
+      maxBatchItems: z.number().int().min(1).max(5000),
+      maxStopsPerRoute: z.number().int().min(1).max(20),
+      routeMaxLegKm: z.number().min(0.5).max(100),
+      serviceMinutesPerStop: z.number().int().min(0).max(60),
+      /** Rota sem entregador após este tempo é distribuída entrega a entrega. */
+      routeFallbackMinutes: z.number().int().min(1).max(240),
+      /** Antecedência mínima para lotes agendados. */
+      batchLeadMinutes: z.number().int().min(0).max(1440),
+      /** Com quantas horas de antecedência as ocorrências recorrentes viram entregas agendadas. */
+      recurrenceHoursAhead: z.number().int().min(1).max(72),
+    }),
+    default: {
+      maxBatchItems: 500,
+      maxStopsPerRoute: 8,
+      routeMaxLegKm: 8,
+      serviceMinutesPerStop: 4,
+      routeFallbackMinutes: 15,
+      batchLeadMinutes: 60,
+      recurrenceHoursAhead: 12,
+    },
+  },
+  fraud: {
+    description: 'Antifraude: pontos por sinal, meia-vida do score, limites de nível e de caso e ações automáticas (leves e reversíveis)',
+    schema: z
+      .object({
+        enabled: z.boolean(),
+        halfLifeDays: z.number().int().min(1).max(365),
+        mediumScore: z.number().int().min(1).max(100),
+        highScore: z.number().int().min(1).max(100),
+        /** Score que abre um caso para revisão humana. */
+        caseScore: z.number().int().min(1).max(100),
+        points: z.record(z.enum(RISK_SIGNAL_TYPES as [RiskSignalType, ...RiskSignalType[]]), z.number().int().min(0).max(100)),
+        maxAccountsPerDevice: z.number().int().min(1).max(20),
+        newAccountDays: z.number().int().min(0).max(90),
+        newAccountHighValueCents: z.number().int().min(0),
+        maxOrdersPerHour: z.number().int().min(1).max(100),
+        paymentFailuresPerDay: z.number().int().min(1).max(50),
+        maxCardsPerDay: z.number().int().min(1).max(20),
+        maxSpeedKmh: z.number().min(50).max(1000),
+        cancellationZ: z.number().min(1).max(10),
+        cancellationMinTotal: z.number().int().min(3).max(1000),
+        /** Ações automáticas. OFF desliga a restrição de dinheiro na entrega. */
+        denyCashAtLevel: z.enum(['OFF', 'MEDIUM', 'HIGH']),
+        denyCashAboveCents: z.number().int().min(0),
+        blockSharedFirstOrderCoupon: z.boolean(),
+        rejectMockedProof: z.boolean(),
+      })
+      .refine((value) => value.mediumScore < value.highScore, { message: 'O limite médio deve ser menor que o alto.', path: ['mediumScore'] }),
+    default: {
+      enabled: true,
+      halfLifeDays: 30,
+      mediumScore: 30,
+      highScore: 60,
+      caseScore: 50,
+      points: {
+        SHARED_DEVICE: 20,
+        COUPON_ABUSE: 30,
+        NEW_ACCOUNT_HIGH_VALUE: 15,
+        ORDER_VELOCITY: 15,
+        PAYMENT_FAILURES: 20,
+        CARD_TESTING: 35,
+        MOCK_LOCATION: 40,
+        IMPOSSIBLE_SPEED: 25,
+        PROOF_FAR_FROM_DROPOFF: 15,
+        ABNORMAL_CANCELLATIONS: 20,
+        DRIVER_RELEASES: 15,
+        MANUAL: 50,
+      } as Record<RiskSignalType, number>,
+      maxAccountsPerDevice: 2,
+      newAccountDays: 3,
+      newAccountHighValueCents: 30_000,
+      maxOrdersPerHour: 6,
+      paymentFailuresPerDay: 3,
+      maxCardsPerDay: 3,
+      maxSpeedKmh: 180,
+      cancellationZ: 3,
+      cancellationMinTotal: 5,
+      denyCashAtLevel: 'HIGH' as 'OFF' | 'MEDIUM' | 'HIGH',
+      denyCashAboveCents: 5_000,
+      blockSharedFirstOrderCoupon: true,
+      rejectMockedProof: true,
+    },
+  },
+  intelligence: {
+    description: 'Previsões e anomalias: semanas de histórico, horizonte, entregas por entregador/hora, limites de alerta, calibração do tempo de entrega e sugestões de preço',
+    schema: z.object({
+      forecastWeeks: z.number().int().min(2).max(12),
+      horizonHours: z.number().int().min(6).max(168),
+      deliveriesPerDriverHour: z.number().min(0.5).max(10),
+      anomalyZ: z.number().min(1.5).max(10),
+      anomalyMinVolume: z.number().int().min(1).max(1000),
+      etaWindowDays: z.number().int().min(7).max(180),
+      etaMinSamples: z.number().int().min(5).max(1000),
+      suggestSurcharges: z.boolean(),
+      /** Falta prevista (necessários ÷ esperados) a partir da qual uma sugestão de adicional é criada. */
+      shortageRatio: z.number().min(1).max(5),
+      maxSurchargeBps: z.number().int().min(0).max(10_000),
+    }),
+    default: {
+      forecastWeeks: 6,
+      horizonHours: 48,
+      deliveriesPerDriverHour: 2,
+      anomalyZ: 3,
+      anomalyMinVolume: 5,
+      etaWindowDays: 30,
+      etaMinSamples: 20,
+      suggestSurcharges: true,
+      shortageRatio: 1.25,
+      maxSurchargeBps: 3000,
+    },
+  },
+  ai: {
+    description: 'IA assistiva: recursos habilitados e limite de uso por pessoa por dia (provedor e chave ficam no ambiente do servidor)',
+    schema: z.object({
+      supportDrafts: z.boolean(),
+      companyAssistant: z.boolean(),
+      reviewAnalysis: z.boolean(),
+      dailyLimitPerUser: z.number().int().min(0).max(1000),
+    }),
+    default: { supportDrafts: true, companyAssistant: true, reviewAnalysis: true, dailyLimitPerUser: 50 },
   },
   'ops.rainCities': {
     description: 'Cidades com adicional de chuva ativo ("cidade/uf" em minúsculas)',

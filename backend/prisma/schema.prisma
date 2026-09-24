@@ -119,6 +119,8 @@ model User {
   driver             Driver?
   companyMemberships CompanyUser[]
   notifications      Notification[]
+  ticketsRequested   SupportTicket[]  @relation("TicketRequester")
+  ticketsAssigned    SupportTicket[]  @relation("TicketAssignee")
   devices            DeviceToken[]
   auditLogs          AuditLog[]
 
@@ -377,7 +379,7 @@ model Customer {
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   carts  Cart[]
   orders Order[]
-  wallet        Wallet?
+  wallet Wallet?
 
   @@index([tenantId])
   @@map("customers")
@@ -526,6 +528,8 @@ model Company {
   /// Fuso horário IANA usado para avaliar o horário de funcionamento.
   timezone                String          @default("America/Sao_Paulo")
   averagePrepMinutes      Int             @default(20)
+  /// Tempo de preparo aprendido do histórico (mediana confirmação → pronto); usado nas previsões.
+  learnedPrepMinutes      Int?
   minimumOrderCents       Int             @default(0)
   fulfillmentMode         FulfillmentMode @default(PLATFORM)
   ratingAvg               Float           @default(0)
@@ -549,6 +553,13 @@ model Company {
   orders        Order[]
   deliveries    Delivery[]
   wallet        Wallet?
+  contracts     CorporateContract[]
+  costCenters   CostCenter[]
+  locations     CompanyLocation[]
+  apiKeys       CompanyApiKey[]
+  batches       DeliveryBatch[]
+  recurrences   RecurringDelivery[]
+  invoices      Invoice[]
 
   @@unique([tenantId, cnpj])
   @@unique([tenantId, slug])
@@ -678,6 +689,8 @@ model Driver {
   lastLat             Float?
   lastLng             Float?
   lastLocationAt      DateTime?
+  /// Última leitura veio de localização simulada (Android "mock location").
+  lastLocationMocked  Boolean            @default(false)
   acceptedOffers      Int                @default(0)
   declinedOffers      Int                @default(0)
   expiredOffers       Int                @default(0)
@@ -1095,49 +1108,49 @@ model Counter {
 }
 
 model Order {
-  id                  String          @id @default(uuid(7)) @db.Uuid
-  tenantId            String          @db.Uuid
-  number              Int
-  customerId          String          @db.Uuid
-  companyId           String          @db.Uuid
-  status              OrderStatus
-  fulfillment         FulfillmentType @default(DELIVERY)
+  id                      String          @id @default(uuid(7)) @db.Uuid
+  tenantId                String          @db.Uuid
+  number                  Int
+  customerId              String          @db.Uuid
+  companyId               String          @db.Uuid
+  status                  OrderStatus
+  fulfillment             FulfillmentType @default(DELIVERY)
   /// Cópia imutável do endereço de entrega no momento do pedido.
-  deliveryAddress     Json?
-  subtotalCents       Int
-  discountCents       Int             @default(0)
-  deliveryFeeCents    Int             @default(0)
-  serviceFeeCents     Int             @default(0)
-  tipCents            Int             @default(0)
-  totalCents          Int
-  paymentMethod       PaymentMethod
-  paymentStatus       PaymentStatus   @default(PENDING)
+  deliveryAddress         Json?
+  subtotalCents           Int
+  discountCents           Int             @default(0)
+  deliveryFeeCents        Int             @default(0)
+  serviceFeeCents         Int             @default(0)
+  tipCents                Int             @default(0)
+  totalCents              Int
+  paymentMethod           PaymentMethod
+  paymentStatus           PaymentStatus   @default(PENDING)
   /// Troco para (pagamento em dinheiro), em centavos.
-  changeForCents      Int?
-  notes               String?
-  scheduledFor        DateTime?
-  estimatedReadyAt    DateTime?
-  estimatedDeliveryAt DateTime?
-  distanceKm          Float?
+  changeForCents          Int?
+  notes                   String?
+  scheduledFor            DateTime?
+  estimatedReadyAt        DateTime?
+  estimatedDeliveryAt     DateTime?
+  distanceKm              Float?
   /// Código que o cliente informa ao entregador na entrega (prova de entrega).
-  deliveryCode        String
+  deliveryCode            String
   /// Exige conferência de documento na entrega (produto com idade mínima/regulado).
-  requiresIdCheck     Boolean         @default(false)
-  prescriptionId      String?         @db.Uuid
-  couponId            String?         @db.Uuid
+  requiresIdCheck         Boolean         @default(false)
+  prescriptionId          String?         @db.Uuid
+  couponId                String?         @db.Uuid
   /// Comissão da plataforma apurada na liquidação.
   platformCommissionCents Int?
-  settledAt           DateTime?
-  cancelReason        String?
-  canceledBy          ActorType?
-  canceledAt          DateTime?
-  confirmedAt         DateTime?
-  preparingAt         DateTime?
-  readyAt             DateTime?
-  pickedUpAt          DateTime?
-  deliveredAt         DateTime?
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
+  settledAt               DateTime?
+  cancelReason            String?
+  canceledBy              ActorType?
+  canceledAt              DateTime?
+  confirmedAt             DateTime?
+  preparingAt             DateTime?
+  readyAt                 DateTime?
+  pickedUpAt              DateTime?
+  deliveredAt             DateTime?
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
 
   customer      Customer             @relation(fields: [customerId], references: [id])
   company       Company              @relation(fields: [companyId], references: [id])
@@ -1145,6 +1158,7 @@ model Order {
   items         OrderItem[]
   statusHistory OrderStatusHistory[]
   delivery      Delivery?
+  conversations Conversation[]
 
   @@unique([tenantId, number])
   @@index([companyId, status, createdAt])
@@ -1362,9 +1376,23 @@ model Delivery {
   failReason         String?
   canceledAt         DateTime?
   cancelReason       String?
+  // --- B2B (Fase 7) ---
+  /// Contrato que precificou a entrega (tabela especial/desconto).
+  contractId         String?        @db.Uuid
+  costCenterId       String?        @db.Uuid
+  /// Referência do cliente corporativo (pedido, nota, protocolo).
+  externalRef        String?
+  batchId            String?        @db.Uuid
+  routeId            String?        @db.Uuid
+  routeSequence      Int?
+  recurrenceId       String?        @db.Uuid
+  invoiceId          String?        @db.Uuid
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
+  batch         DeliveryBatch?          @relation(fields: [batchId], references: [id])
+  route         DeliveryRoute?          @relation(fields: [routeId], references: [id])
+  invoice       Invoice?                @relation(fields: [invoiceId], references: [id])
   order         Order?                  @relation(fields: [orderId], references: [id])
   company       Company?                @relation(fields: [companyId], references: [id])
   driver        Driver?                 @relation(fields: [driverId], references: [id])
@@ -1372,12 +1400,17 @@ model Delivery {
   statusHistory DeliveryStatusHistory[]
   tracking      DeliveryTrackingPoint[]
   proofs        DeliveryProof[]
+  conversations Conversation[]
 
   @@index([tenantId, status, createdAt])
   @@index([driverId, status])
   @@index([requesterUserId, createdAt])
   @@index([companyId, createdAt])
   @@index([status, scheduledFor])
+  @@index([batchId])
+  @@index([routeId, routeSequence])
+  @@index([companyId, paymentMethod, invoiceId])
+  @@index([costCenterId, createdAt])
   @@map("deliveries")
 }
 
@@ -1430,6 +1463,8 @@ model DeliveryTrackingPoint {
   speed      Float?
   heading    Float?
   recordedAt DateTime
+  /// Leitura marcada pelo aparelho como simulada (antifraude).
+  mocked     Boolean  @default(false)
   createdAt  DateTime @default(now())
 
   delivery Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
@@ -1468,26 +1503,32 @@ enum ReviewSubject {
 }
 
 model Review {
-  id           String        @id @default(uuid(7)) @db.Uuid
-  tenantId     String        @db.Uuid
-  orderId      String?       @db.Uuid
-  deliveryId   String?       @db.Uuid
-  authorUserId String        @db.Uuid
-  authorType   ActorType
-  subjectType  ReviewSubject
+  id             String           @id @default(uuid(7)) @db.Uuid
+  tenantId       String           @db.Uuid
+  orderId        String?          @db.Uuid
+  deliveryId     String?          @db.Uuid
+  authorUserId   String           @db.Uuid
+  authorType     ActorType
+  subjectType    ReviewSubject
   /// Id da empresa, do entregador ou do cliente avaliado.
-  subjectId    String        @db.Uuid
-  rating       Int
-  comment      String?
-  tags         String[]
-  isHidden     Boolean       @default(false)
-  hiddenReason String?
-  createdAt    DateTime      @default(now())
+  subjectId      String           @db.Uuid
+  rating         Int
+  comment        String?
+  tags           String[]
+  isHidden       Boolean          @default(false)
+  hiddenReason   String?
+  /// Análise do texto (Fase 8): sentimento, temas e a origem da análise (lexicon ou ai).
+  sentiment      ReviewSentiment?
+  themes         String[]         @default([])
+  analyzedAt     DateTime?
+  analysisSource String?
+  createdAt      DateTime         @default(now())
 
   @@unique([authorUserId, deliveryId, subjectType])
   @@unique([authorUserId, orderId, subjectType])
   @@index([subjectType, subjectId, createdAt])
   @@index([tenantId, createdAt])
+  @@index([tenantId, sentiment, createdAt])
   @@map("reviews")
 }
 
@@ -1502,21 +1543,25 @@ enum PaymentPurpose {
   DELIVERY
   /// Quitação de saldo devedor (ex.: dinheiro recebido pelo entregador, entregas faturadas)
   DEBT_SETTLEMENT
+  /// Pagamento de fatura corporativa (Fase 7)
+  INVOICE
 }
 
 model Payment {
-  id                String        @id @default(uuid(7)) @db.Uuid
-  tenantId          String        @db.Uuid
+  id                String         @id @default(uuid(7)) @db.Uuid
+  tenantId          String         @db.Uuid
   purpose           PaymentPurpose @default(ORDER)
-  orderId           String?       @db.Uuid
-  deliveryId        String?       @db.Uuid
+  orderId           String?        @db.Uuid
+  deliveryId        String?        @db.Uuid
   /// Carteira creditada na quitação de saldo devedor.
-  walletId          String?       @db.Uuid
-  payerUserId       String        @db.Uuid
+  walletId          String?        @db.Uuid
+  /// Fatura corporativa paga por este pagamento.
+  invoiceId         String?        @db.Uuid
+  payerUserId       String         @db.Uuid
   method            PaymentMethod
-  status            PaymentStatus @default(PENDING)
+  status            PaymentStatus  @default(PENDING)
   amountCents       Int
-  refundedCents     Int           @default(0)
+  refundedCents     Int            @default(0)
   /// Provedor: sandbox (desenvolvimento), mercadopago...
   provider          String
   providerPaymentId String?
@@ -1528,8 +1573,8 @@ model Payment {
   authorizedAt      DateTime?
   paidAt            DateTime?
   canceledAt        DateTime?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
   events  PaymentEvent[]
   refunds Refund[]
@@ -1537,20 +1582,21 @@ model Payment {
   @@unique([provider, providerPaymentId])
   @@index([orderId])
   @@index([deliveryId])
+  @@index([invoiceId])
   @@index([tenantId, status, createdAt])
   @@map("payments")
 }
 
 /// Eventos recebidos do provedor (webhooks) — idempotência pelo id do evento.
 model PaymentEvent {
-  id              String   @id @default(uuid(7)) @db.Uuid
-  paymentId       String?  @db.Uuid
+  id              String    @id @default(uuid(7)) @db.Uuid
+  paymentId       String?   @db.Uuid
   provider        String
   providerEventId String
   type            String
   payload         Json
   processedAt     DateTime?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
 
   payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 
@@ -1595,22 +1641,22 @@ enum WalletOwnerType {
 
 /// Saldos são caches dos lançamentos; a fonte da verdade é WalletTransaction.
 model Wallet {
-  id             String          @id @default(uuid(7)) @db.Uuid
-  tenantId       String          @db.Uuid
-  ownerType      WalletOwnerType
-  driverId       String?         @unique @db.Uuid
-  companyId      String?         @unique @db.Uuid
-  customerId     String?         @unique @db.Uuid
+  id               String          @id @default(uuid(7)) @db.Uuid
+  tenantId         String          @db.Uuid
+  ownerType        WalletOwnerType
+  driverId         String?         @unique @db.Uuid
+  companyId        String?         @unique @db.Uuid
+  customerId       String?         @unique @db.Uuid
   /// Preenchido apenas na carteira da plataforma (uma por tenant).
-  platformTenantId String?       @unique @db.Uuid
-  availableCents Int             @default(0)
-  pendingCents   Int             @default(0)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  platformTenantId String?         @unique @db.Uuid
+  availableCents   Int             @default(0)
+  pendingCents     Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
-  driver       Driver?   @relation(fields: [driverId], references: [id])
-  company      Company?  @relation(fields: [companyId], references: [id])
-  customer     Customer? @relation(fields: [customerId], references: [id])
+  driver       Driver?             @relation(fields: [driverId], references: [id])
+  company      Company?            @relation(fields: [companyId], references: [id])
+  customer     Customer?           @relation(fields: [customerId], references: [id])
   transactions WalletTransaction[]
   withdrawals  Withdrawal[]
 
@@ -1647,21 +1693,21 @@ enum LedgerEntryStatus {
 }
 
 model WalletTransaction {
-  id          String            @id @default(uuid(7)) @db.Uuid
-  walletId    String            @db.Uuid
-  type        LedgerEntryType
+  id           String            @id @default(uuid(7)) @db.Uuid
+  walletId     String            @db.Uuid
+  type         LedgerEntryType
   /// Valor com sinal: positivo = crédito, negativo = débito.
-  amountCents Int
-  status      LedgerEntryStatus
-  availableAt DateTime?
-  description String
-  orderId     String?           @db.Uuid
-  deliveryId  String?           @db.Uuid
-  paymentId   String?           @db.Uuid
-  withdrawalId String?          @db.Uuid
+  amountCents  Int
+  status       LedgerEntryStatus
+  availableAt  DateTime?
+  description  String
+  orderId      String?           @db.Uuid
+  deliveryId   String?           @db.Uuid
+  paymentId    String?           @db.Uuid
+  withdrawalId String?           @db.Uuid
   /// Idempotência: um mesmo evento financeiro não gera lançamento duplicado.
-  referenceKey String?          @unique
-  createdAt   DateTime          @default(now())
+  referenceKey String?           @unique
+  createdAt    DateTime          @default(now())
 
   wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
@@ -1681,24 +1727,24 @@ enum WithdrawalStatus {
 }
 
 model Withdrawal {
-  id               String           @id @default(uuid(7)) @db.Uuid
-  tenantId         String           @db.Uuid
-  walletId         String           @db.Uuid
-  amountCents      Int
-  feeCents         Int              @default(0)
-  status           WithdrawalStatus @default(REQUESTED)
+  id                   String           @id @default(uuid(7)) @db.Uuid
+  tenantId             String           @db.Uuid
+  walletId             String           @db.Uuid
+  amountCents          Int
+  feeCents             Int              @default(0)
+  status               WithdrawalStatus @default(REQUESTED)
   /// Destino exibível (mascarado), ex.: "PIX e-mail ma***@x.com"
-  destination      String
+  destination          String
   /// Chave PIX no momento da solicitação (criptografada; alterações posteriores não desviam o saque).
   destinationEncrypted String?
-  requestedById    String           @db.Uuid
-  reviewedById     String?          @db.Uuid
-  reviewedAt       DateTime?
-  paidAt           DateTime?
-  failureReason    String?
-  providerTransferId String?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  requestedById        String           @db.Uuid
+  reviewedById         String?          @db.Uuid
+  reviewedAt           DateTime?
+  paidAt               DateTime?
+  failureReason        String?
+  providerTransferId   String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
 
   wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
@@ -1797,6 +1843,270 @@ model CouponRedemption {
   @@map("coupon_redemptions")
 }
 
+// =============================================================================
+// FASE 6 — OPERAÇÃO, ATENDIMENTO E COMUNICAÇÃO
+// =============================================================================
+
+enum ConversationType {
+  CUSTOMER_COMPANY
+  CUSTOMER_DRIVER
+  COMPANY_DRIVER
+}
+
+enum ChatRole {
+  CUSTOMER
+  COMPANY
+  DRIVER
+  STAFF
+  SYSTEM
+}
+
+/// Conversa ligada a um pedido ou entrega. Os participantes são resolvidos pelo contexto
+/// (cliente do pedido, membros da loja, entregador atual) — telefones nunca são expostos.
+model Conversation {
+  id                 String           @id @default(uuid(7)) @db.Uuid
+  tenantId           String           @db.Uuid
+  type               ConversationType
+  orderId            String?          @db.Uuid
+  deliveryId         String?          @db.Uuid
+  customerUserId     String?          @db.Uuid
+  companyId          String?          @db.Uuid
+  driverId           String?          @db.Uuid
+  /// Depois deste momento a conversa fica somente leitura.
+  closesAt           DateTime?
+  lastMessageAt      DateTime?
+  lastMessagePreview String?
+  customerReadAt     DateTime?
+  companyReadAt      DateTime?
+  driverReadAt       DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  order    Order?        @relation(fields: [orderId], references: [id])
+  delivery Delivery?     @relation(fields: [deliveryId], references: [id])
+  messages ChatMessage[]
+
+  @@unique([type, orderId])
+  @@unique([type, deliveryId])
+  @@index([tenantId, lastMessageAt])
+  @@index([customerUserId, lastMessageAt])
+  @@index([companyId, lastMessageAt])
+  @@index([driverId, lastMessageAt])
+  @@map("conversations")
+}
+
+model ChatMessage {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  conversationId String   @db.Uuid
+  senderUserId   String?  @db.Uuid
+  senderRole     ChatRole
+  body           String
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([senderUserId])
+  @@map("chat_messages")
+}
+
+/// Ligação mascarada (ponte telefônica): nenhum dos lados vê o número do outro.
+model MaskedCall {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  tenantId       String   @db.Uuid
+  conversationId String   @db.Uuid
+  callerUserId   String   @db.Uuid
+  calleeRole     ChatRole
+  provider       String
+  providerCallId String?
+  status         String
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([callerUserId, createdAt])
+  @@map("masked_calls")
+}
+
+// -----------------------------------------------------------------------------
+// Central de atendimento
+// -----------------------------------------------------------------------------
+
+enum TicketCategory {
+  ORDER
+  PAYMENT
+  DELIVERY
+  PRODUCT
+  COMPANY
+  DRIVER
+  ACCOUNT
+  REFUND
+  OTHER
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_REQUESTER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model SupportTicket {
+  id                 String         @id @default(uuid(7)) @db.Uuid
+  tenantId           String         @db.Uuid
+  number             Int
+  requesterUserId    String         @db.Uuid
+  /// Perfil de quem abriu (cliente, entregador ou empresa).
+  requesterRole      ChatRole
+  companyId          String?        @db.Uuid
+  orderId            String?        @db.Uuid
+  deliveryId         String?        @db.Uuid
+  paymentId          String?        @db.Uuid
+  category           TicketCategory
+  priority           TicketPriority
+  status             TicketStatus   @default(OPEN)
+  subject            String
+  description        String
+  assigneeId         String?        @db.Uuid
+  firstResponseDueAt DateTime
+  resolutionDueAt    DateTime
+  firstRespondedAt   DateTime?
+  resolvedAt         DateTime?
+  closedAt           DateTime?
+  /// Primeira vez que algum prazo de SLA foi estourado.
+  slaBreachedAt      DateTime?
+  rating             Int?
+  ratingComment      String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  requester   User               @relation("TicketRequester", fields: [requesterUserId], references: [id])
+  assignee    User?              @relation("TicketAssignee", fields: [assigneeId], references: [id])
+  messages    TicketMessage[]
+  attachments TicketAttachment[]
+  events      TicketEvent[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status, priority])
+  @@index([requesterUserId, createdAt])
+  @@index([assigneeId, status])
+  @@index([orderId])
+  @@index([deliveryId])
+  @@map("support_tickets")
+}
+
+model TicketMessage {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  ticketId     String   @db.Uuid
+  authorUserId String?  @db.Uuid
+  /// REQUESTER, STAFF ou SYSTEM
+  authorRole   String
+  /// Nota interna da equipe (não visível para quem abriu).
+  internal     Boolean  @default(false)
+  body         String
+  createdAt    DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_messages")
+}
+
+model TicketAttachment {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  ticketId     String   @db.Uuid
+  fileKey      String
+  fileName     String
+  mimeType     String
+  size         Int
+  uploadedById String   @db.Uuid
+  internal     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("ticket_attachments")
+}
+
+/// Histórico do chamado: criação, status, prioridade, atribuição, SLA, avaliação.
+model TicketEvent {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  ticketId    String   @db.Uuid
+  actorUserId String?  @db.Uuid
+  type        String
+  fromValue   String?
+  toValue     String?
+  createdAt   DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_events")
+}
+
+// -----------------------------------------------------------------------------
+// Operação: amostras agregadas de disponibilidade (mapa de calor, oferta x demanda)
+// -----------------------------------------------------------------------------
+
+/// Contagem de entregadores por célula (geohash) a cada 5 minutos — sem identificar ninguém.
+model DriverPresenceSample {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  tenantId    String   @db.Uuid
+  geohash     String
+  lat         Float
+  lng         Float
+  bucketStart DateTime
+  onlineCount Int
+  busyCount   Int
+
+  @@unique([tenantId, geohash, bucketStart])
+  @@index([tenantId, bucketStart])
+  @@map("driver_presence_samples")
+}
+
+// -----------------------------------------------------------------------------
+// Comunicados (promoções e avisos operacionais)
+// -----------------------------------------------------------------------------
+
+enum BroadcastAudience {
+  CUSTOMERS
+  DRIVERS
+  COMPANY_USERS
+}
+
+enum BroadcastKind {
+  MARKETING
+  OPERATIONAL
+}
+
+model Broadcast {
+  id          String            @id @default(uuid(7)) @db.Uuid
+  tenantId    String            @db.Uuid
+  audience    BroadcastAudience
+  kind        BroadcastKind
+  title       String
+  body        String
+  channels    String[]
+  city        String?
+  status      String            @default("QUEUED")
+  recipients  Int               @default(0)
+  delivered   Int               @default(0)
+  createdById String            @db.Uuid
+  createdAt   DateTime          @default(now())
+  finishedAt  DateTime?
+
+  @@index([tenantId, createdAt])
+  @@map("broadcasts")
+}
+
 // -----------------------------------------------------------------------------
 // Contato (formulário público do portal)
 // -----------------------------------------------------------------------------
@@ -1854,4 +2164,706 @@ model AuditLog {
   @@index([actorId, createdAt])
   @@index([action, createdAt])
   @@map("audit_logs")
+}
+
+// -----------------------------------------------------------------------------
+// Indicadores: visitas às lojas (taxa de conversão), sem identificar o visitante
+// -----------------------------------------------------------------------------
+
+model StoreVisitDaily {
+  companyId String   @db.Uuid
+  /// Dia local da loja (fuso da empresa).
+  day       DateTime @db.Date
+  visits    Int      @default(0)
+
+  @@id([companyId, day])
+  @@map("store_visits_daily")
+}
+
+// =============================================================================
+// FASE 7 — B2B (CORPORATIVO)
+// =============================================================================
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+  ENDED
+}
+
+/// Contrato corporativo: habilita entregas faturadas com limite de crédito, tabela especial,
+/// franquia mínima, centros de custo obrigatórios e fatura mensal.
+model CorporateContract {
+  id                    String         @id @default(uuid(7)) @db.Uuid
+  tenantId              String         @db.Uuid
+  companyId             String         @db.Uuid
+  number                Int
+  title                 String
+  status                ContractStatus @default(DRAFT)
+  startsOn              DateTime       @db.Date
+  endsOn                DateTime?      @db.Date
+  /// Dia de fechamento (1–28): a fatura cobre do fechamento anterior até a véspera.
+  billingDay            Int            @default(1)
+  paymentTermDays       Int            @default(10)
+  /// Máximo em aberto (entregas faturadas ainda não pagas).
+  creditLimitCents      Int
+  /// Franquia mínima mensal: o complemento é cobrado na fatura.
+  minimumMonthlyCents   Int            @default(0)
+  /// Desconto sobre a tabela padrão quando nenhuma regra especial se aplica (pontos-base).
+  discountBps           Int            @default(0)
+  requireCostCenter     Boolean        @default(false)
+  /// Avisar os destinatários (SMS) com o link de acompanhamento.
+  notifyRecipients      Boolean        @default(true)
+  /// Fatura vencida há mais dias que isto bloqueia novas entregas faturadas.
+  blockAfterOverdueDays Int            @default(5)
+  notes                 String?
+  createdById           String         @db.Uuid
+  activatedAt           DateTime?
+  activatedById         String?        @db.Uuid
+  endedAt               DateTime?
+  /// Fim (exclusivo) do período da última fatura emitida.
+  invoicedUntil         DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  company    Company             @relation(fields: [companyId], references: [id])
+  priceRules ContractPriceRule[]
+  invoices   Invoice[]
+
+  @@unique([tenantId, number])
+  @@index([companyId, status])
+  @@map("corporate_contracts")
+}
+
+/// Tabela especial do contrato (mesmo motor da tabela padrão, sem adicional de demanda).
+model ContractPriceRule {
+  id                String       @id @default(uuid(7)) @db.Uuid
+  contractId        String       @db.Uuid
+  name              String
+  priority          Int          @default(0)
+  vehicleType       VehicleType?
+  city              String?
+  state             String?
+  baseCents         Int
+  perKmCents        Int          @default(0)
+  includedKm        Float        @default(0)
+  perMinuteCents    Int          @default(0)
+  perKgCents        Int          @default(0)
+  includedKg        Float        @default(0)
+  minimumCents      Int          @default(0)
+  maximumCents      Int?
+  nightSurchargeBps Int          @default(0)
+  rainSurchargeBps  Int          @default(0)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  contract CorporateContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+  @@map("contract_price_rules")
+}
+
+model CostCenter {
+  id                 String   @id @default(uuid(7)) @db.Uuid
+  tenantId           String   @db.Uuid
+  companyId          String   @db.Uuid
+  code               String
+  name               String
+  /// Limite de gasto por mês (entregas faturadas ou pagas com carteira); nulo = sem limite.
+  monthlyBudgetCents Int?
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@map("cost_centers")
+}
+
+/// Unidades e locais da empresa (filiais, CDs, clientes frequentes) para coletas, destinos e transferências.
+model CompanyLocation {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  tenantId     String   @db.Uuid
+  companyId    String   @db.Uuid
+  name         String
+  /// Unidade própria (transferência entre unidades) ou endereço de terceiro.
+  isUnit       Boolean  @default(true)
+  contactName  String?
+  contactPhone String?
+  zipCode      String?
+  street       String
+  number       String
+  complement   String?
+  district     String?
+  city         String
+  state        String
+  reference    String?
+  lat          Float
+  lng          Float
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, isActive])
+  @@map("company_locations")
+}
+
+/// Chave de API da empresa (integração de sistemas). Só o hash é guardado; o segredo é mostrado uma vez.
+model CompanyApiKey {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  tenantId    String    @db.Uuid
+  companyId   String    @db.Uuid
+  name        String
+  /// Início visível da chave (identificação).
+  prefix      String    @unique
+  keyHash     String    @unique
+  scopes      String[]
+  createdById String    @db.Uuid
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("company_api_keys")
+}
+
+// -----------------------------------------------------------------------------
+// Entregas em lote e rotas
+// -----------------------------------------------------------------------------
+
+enum DeliveryBatchStatus {
+  VALIDATING
+  READY
+  CONFIRMED
+  CANCELED
+  FAILED
+}
+
+enum DeliveryBatchSource {
+  CSV
+  XLSX
+  API
+}
+
+enum BatchItemStatus {
+  PENDING
+  VALID
+  INVALID
+  CREATED
+}
+
+model DeliveryBatch {
+  id            String              @id @default(uuid(7)) @db.Uuid
+  tenantId      String              @db.Uuid
+  companyId     String              @db.Uuid
+  number        Int
+  name          String?
+  source        DeliveryBatchSource
+  fileName      String?
+  status        DeliveryBatchStatus @default(VALIDATING)
+  /// Coleta de todas as entregas do lote (endereço da empresa ou de uma unidade).
+  pickup        Json
+  pickupLat     Float
+  pickupLng     Float
+  locationId    String?             @db.Uuid
+  scheduledFor  DateTime?
+  paymentMethod PaymentMethod
+  costCenterId  String?             @db.Uuid
+  /// Agrupa as entregas em rotas (tarefas com várias paradas para um entregador).
+  planRoutes    Boolean             @default(true)
+  itemsCount    Int                 @default(0)
+  validCount    Int                 @default(0)
+  invalidCount  Int                 @default(0)
+  totalFeeCents Int                 @default(0)
+  routesCount   Int                 @default(0)
+  error         String?
+  createdById   String              @db.Uuid
+  confirmedAt   DateTime?
+  confirmedById String?             @db.Uuid
+  canceledAt    DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  company    Company             @relation(fields: [companyId], references: [id])
+  items      DeliveryBatchItem[]
+  routes     DeliveryRoute[]
+  deliveries Delivery[]
+
+  @@unique([tenantId, number])
+  @@index([companyId, createdAt])
+  @@map("delivery_batches")
+}
+
+model DeliveryBatchItem {
+  id           String          @id @default(uuid(7)) @db.Uuid
+  batchId      String          @db.Uuid
+  row          Int
+  externalRef  String?
+  status       BatchItemStatus @default(PENDING)
+  /// Linha normalizada (destinatário, endereço, carga, observações, centro de custo).
+  data         Json
+  errors       String[]
+  /// Destino resolvido (com coordenadas) e cotação.
+  dropoff      Json?
+  vehicleType  VehicleType?
+  distanceKm   Float?
+  durationMin  Int?
+  feeCents     Int?
+  payoutCents  Int?
+  costCenterId String?         @db.Uuid
+  deliveryId   String?         @unique @db.Uuid
+  createdAt    DateTime        @default(now())
+
+  batch DeliveryBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId, row])
+  @@map("delivery_batch_items")
+}
+
+enum RouteStatus {
+  PLANNED
+  DISPATCHING
+  ASSIGNED
+  COMPLETED
+  SPLIT
+  CANCELED
+}
+
+/// Rota (tarefa): várias entregas com a mesma coleta, em ordem otimizada, oferecidas a um único entregador.
+model DeliveryRoute {
+  id             String      @id @default(uuid(7)) @db.Uuid
+  tenantId       String      @db.Uuid
+  companyId      String      @db.Uuid
+  batchId        String      @db.Uuid
+  sequence       Int
+  status         RouteStatus @default(PLANNED)
+  vehicleType    VehicleType
+  stopsCount     Int
+  distanceKm     Float
+  durationMin    Int
+  feeCents       Int
+  payoutCents    Int
+  leadDeliveryId String?     @db.Uuid
+  driverId       String?     @db.Uuid
+  assignedAt     DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  batch      DeliveryBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  deliveries Delivery[]
+
+  @@index([batchId, sequence])
+  @@index([tenantId, status])
+  @@map("delivery_routes")
+}
+
+// -----------------------------------------------------------------------------
+// Entregas recorrentes
+// -----------------------------------------------------------------------------
+
+model RecurringDelivery {
+  id                String        @id @default(uuid(7)) @db.Uuid
+  tenantId          String        @db.Uuid
+  companyId         String        @db.Uuid
+  name              String
+  pickupLocationId  String?       @db.Uuid
+  dropoffLocationId String?       @db.Uuid
+  /// Destino avulso (quando não é um local cadastrado).
+  dropoff           Json?
+  /// Dias da semana (0 = domingo) e horário local da entrega.
+  weekdays          Int[]
+  time              String
+  startsOn          DateTime      @db.Date
+  endsOn            DateTime?     @db.Date
+  itemCategory      ItemCategory  @default(OTHER)
+  itemDescription   String?
+  weightKg          Float?
+  notes             String?
+  proofMethod       ProofMethod?
+  paymentMethod     PaymentMethod
+  costCenterId      String?       @db.Uuid
+  isActive          Boolean       @default(true)
+  createdById       String        @db.Uuid
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  runs    RecurringRun[]
+
+  @@index([tenantId, isActive])
+  @@index([companyId])
+  @@map("recurring_deliveries")
+}
+
+/// Uma ocorrência gerada (ou que falhou) — idempotente por data.
+model RecurringRun {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  recurrenceId String   @db.Uuid
+  /// Data local da ocorrência (AAAA-MM-DD).
+  occursOn     String
+  scheduledFor DateTime
+  deliveryId   String?  @db.Uuid
+  error        String?
+  createdAt    DateTime @default(now())
+
+  recurrence RecurringDelivery @relation(fields: [recurrenceId], references: [id], onDelete: Cascade)
+
+  @@unique([recurrenceId, occursOn])
+  @@map("recurring_runs")
+}
+
+// -----------------------------------------------------------------------------
+// Faturamento
+// -----------------------------------------------------------------------------
+
+enum InvoiceStatus {
+  ISSUED
+  PAID
+  OVERDUE
+  CANCELED
+}
+
+model Invoice {
+  id                     String        @id @default(uuid(7)) @db.Uuid
+  tenantId               String        @db.Uuid
+  companyId              String        @db.Uuid
+  contractId             String        @db.Uuid
+  number                 Int
+  periodStart            DateTime
+  periodEnd              DateTime
+  status                 InvoiceStatus @default(ISSUED)
+  deliveriesCount        Int
+  deliveriesCents        Int
+  minimumAdjustmentCents Int           @default(0)
+  totalCents             Int
+  /// Resumo por centro de custo: [{ costCenterId, code, name, deliveries, amountCents }]
+  byCostCenter           Json
+  issuedAt               DateTime      @default(now())
+  dueAt                  DateTime
+  paidAt                 DateTime?
+  paidReference          String?
+  canceledAt             DateTime?
+  cancelReason           String?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+
+  company    Company           @relation(fields: [companyId], references: [id])
+  contract   CorporateContract @relation(fields: [contractId], references: [id])
+  deliveries Delivery[]
+
+  @@unique([tenantId, number])
+  @@unique([contractId, periodStart])
+  @@index([companyId, status])
+  @@index([status, dueAt])
+  @@map("invoices")
+}
+
+// =============================================================================
+// FASE 8 — INTELIGÊNCIA (antifraude, previsões, anomalias e IA assistiva)
+// =============================================================================
+
+enum RiskSignalType {
+  /// Várias contas no mesmo aparelho.
+  SHARED_DEVICE
+  /// Cupom de primeira compra em aparelho/endereço já usado por outra conta.
+  COUPON_ABUSE
+  /// Conta recém-criada com pedido de valor alto.
+  NEW_ACCOUNT_HIGH_VALUE
+  /// Muitos pedidos/solicitações em pouco tempo.
+  ORDER_VELOCITY
+  /// Pagamentos recusados em sequência.
+  PAYMENT_FAILURES
+  /// Vários cartões diferentes em pouco tempo (teste de cartões).
+  CARD_TESTING
+  /// Localização simulada no aparelho do entregador.
+  MOCK_LOCATION
+  /// Deslocamento impossível entre duas leituras de GPS.
+  IMPOSSIBLE_SPEED
+  /// Tentativa de concluir a entrega longe do destino.
+  PROOF_FAR_FROM_DROPOFF
+  /// Taxa de cancelamento muito acima do normal.
+  ABNORMAL_CANCELLATIONS
+  /// Entregador que desiste de entregas com frequência anormal.
+  DRIVER_RELEASES
+  /// Registrado manualmente pela equipe.
+  MANUAL
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum RiskCaseStatus {
+  OPEN
+  IN_REVIEW
+  DISMISSED
+  CONFIRMED
+}
+
+enum AnomalyKind {
+  DEMAND_SPIKE
+  DEMAND_DROP
+  CANCELLATION_SPIKE
+  PAYMENT_FAILURE_SPIKE
+  DISPATCH_DELAY
+}
+
+enum AnomalySeverity {
+  WARNING
+  CRITICAL
+}
+
+enum AnomalyStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+enum ReviewSentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+enum SuggestionStatus {
+  PENDING
+  APPLIED
+  DISMISSED
+  EXPIRED
+}
+
+/// Aparelho visto em uma conta: id de instalação do app ou cookie do navegador, guardado como hash.
+model DeviceSighting {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  tenantId    String   @db.Uuid
+  deviceHash  String
+  userId      String   @db.Uuid
+  lastIp      String?
+  userAgent   String?
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  logins      Int      @default(1)
+
+  @@unique([tenantId, deviceHash, userId])
+  @@index([userId])
+  @@map("device_sightings")
+}
+
+/// Indício de risco com a evidência que o gerou. Os pontos somam no score (com decaimento no tempo).
+model RiskSignal {
+  id             String         @id @default(uuid(7)) @db.Uuid
+  tenantId       String         @db.Uuid
+  userId         String         @db.Uuid
+  type           RiskSignalType
+  points         Int
+  message        String
+  details        Json?
+  relatedUserIds String[]       @default([]) @db.Uuid
+  orderId        String?        @db.Uuid
+  deliveryId     String?        @db.Uuid
+  paymentId      String?        @db.Uuid
+  /// Evita registrar duas vezes o mesmo fato (ex.: "coupon:<orderId>").
+  dedupeKey      String?
+  caseId         String?        @db.Uuid
+  createdAt      DateTime       @default(now())
+
+  case RiskCase? @relation(fields: [caseId], references: [id])
+
+  @@unique([tenantId, dedupeKey])
+  @@index([tenantId, userId, createdAt])
+  @@index([tenantId, type, createdAt])
+  @@index([caseId])
+  @@map("risk_signals")
+}
+
+/// Score de risco atual da conta (0–100, decai com o tempo). Recalculado a cada sinal e diariamente.
+model RiskProfile {
+  userId        String    @id @db.Uuid
+  tenantId      String    @db.Uuid
+  score         Int       @default(0)
+  level         RiskLevel @default(LOW)
+  signals       Int       @default(0)
+  lastSignalAt  DateTime?
+  /// Conta revisada e liberada pela equipe: ações automáticas suspensas até esta data.
+  trustedUntil  DateTime?
+  trustedReason String?
+  updatedAt     DateTime  @updatedAt
+
+  @@index([tenantId, level, score])
+  @@map("risk_profiles")
+}
+
+/// Caso para revisão humana: aberto quando o score passa do limite configurado.
+model RiskCase {
+  id           String         @id @default(uuid(7)) @db.Uuid
+  tenantId     String         @db.Uuid
+  number       Int
+  userId       String         @db.Uuid
+  status       RiskCaseStatus @default(OPEN)
+  level        RiskLevel
+  score        Int
+  summary      String
+  assigneeId   String?        @db.Uuid
+  resolution   String?
+  resolvedById String?        @db.Uuid
+  resolvedAt   DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  signals RiskSignal[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status, level])
+  @@index([userId, status])
+  @@map("risk_cases")
+}
+
+/// Previsão horária de demanda (entregas solicitadas) por cidade e necessidade de entregadores.
+model DemandForecast {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  tenantId        String   @db.Uuid
+  /// "cidade/uf" normalizado
+  city            String
+  hourStart       DateTime
+  predicted       Float
+  low             Float
+  high            Float
+  driversNeeded   Int
+  /// Média de entregadores online na mesma hora das últimas semanas (amostras da torre).
+  driversExpected Float?
+  /// Realizado (preenchido depois da hora): entregas solicitadas e entregadores online.
+  actual          Int?
+  driversOnline   Float?
+  generatedAt     DateTime @default(now())
+
+  @@unique([tenantId, city, hourStart])
+  @@index([tenantId, hourStart])
+  @@map("demand_forecasts")
+}
+
+/// Calibração do tempo de entrega aprendida com o histórico (cidade × veículo × faixa horária).
+model EtaCalibration {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  tenantId        String   @db.Uuid
+  /// "cidade/uf" normalizado ou "*" (todas)
+  city            String
+  /// Tipo de veículo ou "*" (todos)
+  vehicle         String
+  /// Faixa horária local (0 madrugada, 1 manhã, 2 almoço, 3 tarde, 4 jantar, 5 noite) ou -1 (todas)
+  band            Int
+  /// Tempo real de trajeto ÷ tempo estimado pela rota.
+  transitFactor   Float
+  /// Medianas (min): atribuição → coleta e busca → atribuição.
+  pickupMinutes   Float?
+  dispatchMinutes Float?
+  samples         Int
+  /// Erro médio absoluto (min) da estimativa original e da calibrada, no mesmo período.
+  maeBeforeMin    Float?
+  maeAfterMin     Float?
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, city, vehicle, band])
+  @@map("eta_calibrations")
+}
+
+/// Anomalia operacional detectada (volume fora da previsão, picos de cancelamento, falhas de pagamento...).
+model OpsAnomaly {
+  id               String          @id @default(uuid(7)) @db.Uuid
+  tenantId         String          @db.Uuid
+  kind             AnomalyKind
+  severity         AnomalySeverity
+  status           AnomalyStatus   @default(OPEN)
+  city             String?
+  windowStart      DateTime
+  windowEnd        DateTime
+  observed         Float
+  expected         Float
+  zScore           Float
+  message          String
+  dedupeKey        String
+  acknowledgedById String?         @db.Uuid
+  acknowledgedAt   DateTime?
+  resolvedAt       DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@unique([tenantId, dedupeKey])
+  @@index([tenantId, status, createdAt])
+  @@map("ops_anomalies")
+}
+
+/// Sugestão de adicional de preço gerada pela previsão de falta de entregadores (aplicação sempre humana).
+model PricingSuggestion {
+  id              String           @id @default(uuid(7)) @db.Uuid
+  tenantId        String           @db.Uuid
+  city            String
+  windowStart     DateTime
+  windowEnd       DateTime
+  surchargeBps    Int
+  predicted       Float
+  driversNeeded   Int
+  driversExpected Float
+  reason          String
+  status          SuggestionStatus @default(PENDING)
+  surchargeId     String?          @db.Uuid
+  decidedById     String?          @db.Uuid
+  decidedAt       DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([tenantId, city, windowStart])
+  @@index([tenantId, status, windowStart])
+  @@map("pricing_suggestions")
+}
+
+/// Adicional de preço com data e hora (ex.: pico previsto): incide sobre o frete e sobre o repasse ao entregador.
+model PricingSurcharge {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  tenantId     String    @db.Uuid
+  /// "cidade/uf" normalizado ou null (todas as cidades)
+  city         String?
+  startsAt     DateTime
+  endsAt       DateTime
+  surchargeBps Int
+  reason       String
+  createdById  String    @db.Uuid
+  canceledAt   DateTime?
+  canceledById String?   @db.Uuid
+  createdAt    DateTime  @default(now())
+
+  @@index([tenantId, startsAt, endsAt])
+  @@map("pricing_surcharges")
+}
+
+/// Uso dos recursos de IA: auditoria, custo e supervisão.
+model AiInteraction {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  tenantId     String   @db.Uuid
+  userId       String?  @db.Uuid
+  companyId    String?  @db.Uuid
+  /// SUPPORT_DRAFT | COMPANY_ASSISTANT | REVIEW_ANALYSIS
+  feature      String
+  provider     String
+  model        String?
+  /// OK | REFUSED | ERROR
+  status       String
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  latencyMs    Int      @default(0)
+  error        String?
+  createdAt    DateTime @default(now())
+
+  @@index([tenantId, feature, createdAt])
+  @@index([userId, createdAt])
+  @@map("ai_interactions")
 }

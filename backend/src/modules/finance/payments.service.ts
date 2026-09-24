@@ -1,8 +1,9 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleInit, UnprocessableEntityException } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { PrismaService, Tx } from '../../infra/prisma/prisma.service';
 import { JobsService } from '../../infra/jobs/jobs.service';
 import { AppConfig } from '../../config/config.module';
+import { PAYMENT_FAILED, PaymentFailedEvent } from '../../common/intelligence-events';
 import { AuditService } from '../audit/audit.service';
 import { SettingsService } from '../settings/settings.service';
 import { OrdersService, ORDER_STATUS_CHANGED, OrderStatusChangedEvent } from '../orders/orders.service';
@@ -13,6 +14,17 @@ import { GatewayStatus, MercadoPagoGateway, PaymentGateway, SandboxGateway } fro
 import { LedgerService, WalletOwner } from './ledger.service';
 import { Prisma } from '../../generated/prisma/client';
 import type { PaymentMethod, PaymentPurpose, PaymentStatus } from '../../generated/prisma/enums';
+
+/** Pagamento de fatura corporativa confirmado (o módulo B2B baixa a fatura). */
+export const INVOICE_PAYMENT_CONFIRMED = 'payment.invoice.confirmed';
+export interface InvoicePaymentConfirmedEvent {
+  invoiceId: string;
+  paymentId: string;
+  amountCents: number;
+}
+
+/** Parte do saldo devedor que será cobrada por outro meio (ex.: fatura mensal do contrato). */
+export type DebtExclusion = (owner: WalletOwner) => Promise<number>;
 
 const ONLINE: PaymentMethod[] = ['PIX', 'CREDIT_CARD', 'DEBIT_CARD', 'WALLET'];
 
@@ -45,6 +57,7 @@ export class PaymentsService implements OnModuleInit {
     private readonly orders: OrdersService,
     private readonly coupons: CouponsService,
     private readonly ledger: LedgerService,
+    private readonly events: EventEmitter2,
   ) {
     const env = config.env;
     this.gateway =
@@ -208,6 +221,16 @@ export class PaymentsService implements OnModuleInit {
     await this.jobs.cancel(`pix-expire:${paymentId}`);
     await this.audit.log({ action: 'payment.paid', entityType: 'Payment', entityId: paymentId, actorId: null, tenantId: payment.tenantId, after: { amountCents: payment.amountCents, method: payment.method, purpose: payment.purpose } });
 
+    if (payment.purpose === 'INVOICE' && payment.walletId && payment.invoiceId) {
+      const wallet = await this.prisma.wallet.findUniqueOrThrow({ where: { id: payment.walletId } });
+      await this.prisma.$transaction((tx) =>
+        this.ledger.post(tx, payment.tenantId, [
+          { owner: this.ledger.ownerOf(wallet), type: 'PAYMENT', amountCents: payment.amountCents, description: 'Pagamento de fatura (PIX)', paymentId, referenceKey: `payment:${paymentId}:invoice` },
+        ]),
+      );
+      this.events.emit(INVOICE_PAYMENT_CONFIRMED, { invoiceId: payment.invoiceId, paymentId, amountCents: payment.amountCents } satisfies InvoicePaymentConfirmedEvent);
+      return;
+    }
     if (payment.purpose === 'DEBT_SETTLEMENT' && payment.walletId) {
       const wallet = await this.prisma.wallet.findUniqueOrThrow({ where: { id: payment.walletId } });
       await this.prisma.$transaction((tx) =>
@@ -242,6 +265,14 @@ export class PaymentsService implements OnModuleInit {
     if (updated.count === 0) return;
     const payment = await this.prisma.payment.findUniqueOrThrow({ where: { id: paymentId } });
     await this.jobs.cancel(`pix-expire:${paymentId}`);
+    this.events.emit(PAYMENT_FAILED, {
+      tenantId: payment.tenantId,
+      paymentId,
+      payerUserId: payment.payerUserId,
+      method: payment.method,
+      amountCents: payment.amountCents,
+      orderId: payment.orderId,
+    } satisfies PaymentFailedEvent);
     if (payment.orderId) {
       await this.prisma.order.update({ where: { id: payment.orderId }, data: { paymentStatus: 'FAILED' } });
       await this.orders
@@ -273,11 +304,20 @@ export class PaymentsService implements OnModuleInit {
   // Quitação de saldo devedor (entregador com dinheiro em mãos, empresa com entregas faturadas)
   // ---------------------------------------------------------------------------
 
+  registerDebtExclusion(exclusion: DebtExclusion): void {
+    this.debtExclusion = exclusion;
+  }
+
+  private debtExclusion?: DebtExclusion;
+
   async createDebtSettlement(user: AuthUser, owner: WalletOwner) {
     const gateway = this.requireGateway();
     const wallet = await this.ledger.wallet(user.tenantId, owner);
-    const due = -(wallet.availableCents + Math.min(0, wallet.pendingCents));
-    if (due <= 0) throw new ConflictException('Não há saldo devedor para quitar.');
+    const debt = -(wallet.availableCents + Math.min(0, wallet.pendingCents));
+    // Entregas faturadas são cobradas pela fatura do contrato — não entram na quitação avulsa.
+    const excluded = debt > 0 && this.debtExclusion ? await this.debtExclusion(owner) : 0;
+    const due = debt - excluded;
+    if (due <= 0) throw new ConflictException(excluded > 0 ? 'Seu saldo devedor refere-se a entregas faturadas e será cobrado na fatura do contrato.' : 'Não há saldo devedor para quitar.');
     const open = await this.prisma.payment.findFirst({ where: { walletId: wallet.id, purpose: 'DEBT_SETTLEMENT', status: 'PENDING', pixExpiresAt: { gt: new Date() } } });
     if (open && open.amountCents === due) return this.debtView(open);
     if (open) {
@@ -291,6 +331,54 @@ export class PaymentsService implements OnModuleInit {
     });
     await this.createPixCharge(payment.id, user.tenantId, due, 'Quitação de saldo devedor', payer.email);
     return this.debtView(await this.prisma.payment.findUniqueOrThrow({ where: { id: payment.id } }));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Faturas corporativas (Fase 7)
+  // ---------------------------------------------------------------------------
+
+  /** PIX para pagar uma fatura (credita a carteira da empresa quando confirmado). */
+  async createInvoicePayment(user: AuthUser, input: { companyId: string; invoiceId: string; amountCents: number; number: number }) {
+    const gateway = this.requireGateway();
+    const wallet = await this.ledger.wallet(user.tenantId, { type: 'COMPANY', companyId: input.companyId });
+    const open = await this.prisma.payment.findFirst({ where: { invoiceId: input.invoiceId, purpose: 'INVOICE', status: 'PENDING', pixExpiresAt: { gt: new Date() } } });
+    if (open && open.amountCents === input.amountCents) return this.debtView(open);
+    if (open) {
+      await this.prisma.payment.update({ where: { id: open.id }, data: { status: 'CANCELED', canceledAt: new Date() } });
+      await this.jobs.cancel(`pix-expire:${open.id}`);
+    }
+    const payer = await this.prisma.user.findUniqueOrThrow({ where: { id: user.userId }, select: { email: true } });
+    const payment = await this.prisma.payment.create({
+      data: { tenantId: user.tenantId, purpose: 'INVOICE', walletId: wallet.id, invoiceId: input.invoiceId, payerUserId: user.userId, method: 'PIX', amountCents: input.amountCents, provider: gateway.name },
+    });
+    await this.createPixCharge(payment.id, user.tenantId, input.amountCents, `Fatura #${input.number}`, payer.email);
+    return this.debtView(await this.prisma.payment.findUniqueOrThrow({ where: { id: payment.id } }));
+  }
+
+  /** Baixa manual (transferência/boleto conferidos pelo financeiro): registra o pagamento e credita a carteira. */
+  async recordInvoicePayment(actor: AuthUser, input: { companyId: string; invoiceId: string; amountCents: number; number: number; reference: string }) {
+    const wallet = await this.ledger.wallet(actor.tenantId, { type: 'COMPANY', companyId: input.companyId });
+    return this.prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.create({
+        data: {
+          tenantId: actor.tenantId,
+          purpose: 'INVOICE',
+          walletId: wallet.id,
+          invoiceId: input.invoiceId,
+          payerUserId: actor.userId,
+          method: 'INVOICE',
+          provider: 'manual',
+          providerPaymentId: `manual:${input.invoiceId}`,
+          status: 'PAID',
+          amountCents: input.amountCents,
+          paidAt: new Date(),
+        },
+      });
+      await this.ledger.post(tx, actor.tenantId, [
+        { owner: { type: 'COMPANY', companyId: input.companyId }, type: 'PAYMENT', amountCents: input.amountCents, description: `Pagamento da fatura #${input.number} (${input.reference})`, paymentId: payment.id, referenceKey: `payment:${payment.id}:invoice` },
+      ]);
+      return payment;
+    });
   }
 
   private debtView(payment: { id: string; amountCents: number; status: PaymentStatus; pixCopyPaste: string | null; pixExpiresAt: Date | null }) {
@@ -381,7 +469,7 @@ export class PaymentsService implements OnModuleInit {
     const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
     if (!payment || (actor && payment.tenantId !== actor.tenantId)) throw new NotFoundException('Pagamento não encontrado.');
     if (!['PAID', 'PARTIALLY_REFUNDED'].includes(payment.status)) throw new ConflictException('Somente pagamentos aprovados podem ser estornados.');
-    if (payment.purpose === 'DEBT_SETTLEMENT') throw new ConflictException('Quitações de saldo não podem ser estornadas por aqui. Use um ajuste manual.');
+    if (payment.purpose === 'DEBT_SETTLEMENT' || payment.purpose === 'INVOICE') throw new ConflictException('Quitações de saldo e pagamentos de fatura não podem ser estornados por aqui. Use um ajuste manual.');
     const refundable = payment.amountCents - payment.refundedCents;
     if (!Number.isInteger(amountCents) || amountCents <= 0 || amountCents > refundable) {
       throw new BadRequestException(`Valor máximo para estorno: R$ ${(refundable / 100).toFixed(2).replace('.', ',')}.`);

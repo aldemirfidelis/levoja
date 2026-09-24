@@ -138,13 +138,44 @@ export class MapsService {
     return haversineKm(origin, destination);
   }
 
+  /** Há geocodificador configurado (endereços sem coordenadas podem ser localizados). */
+  get canGeocode(): boolean {
+    return !!this.geocoder;
+  }
+
+  /**
+   * Geocodificação com cache (30 dias) e fila serializada: no máximo 1 consulta por segundo ao
+   * provedor (política de uso do Nominatim) — importante na validação de lotes grandes.
+   */
   async geocode(address: GeocodeInput): Promise<LatLng | null> {
     if (!this.geocoder) return null;
+    const key = `geocode:${[address.street, address.number, address.district, address.city, address.state, address.zipCode]
+      .map((part) => (part ?? '').toString().normalize('NFKD').replace(/[̀-ͯ]/g, '').trim().toLowerCase())
+      .join('|')}`;
+    const cached = await this.cache.get<LatLng | { miss: true }>(key);
+    if (cached) return 'miss' in cached ? null : cached;
+    const run = this.geocodeQueue.then(async () => {
+      const wait = this.lastGeocodeAt + GEOCODE_INTERVAL_MS - Date.now();
+      if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+      this.lastGeocodeAt = Date.now();
+      return this.geocoder!.geocode(address);
+    });
+    this.geocodeQueue = run.then(
+      () => undefined,
+      () => undefined,
+    );
     try {
-      return await this.geocoder.geocode(address);
+      const point = await run;
+      await this.cache.set(key, point ?? { miss: true }, point ? 30 * 86_400 : 3_600);
+      return point;
     } catch (error) {
       this.logger.warn(`Geocodificação falhou: ${(error as Error).message}`);
       return null;
     }
   }
+
+  private geocodeQueue: Promise<void> = Promise.resolve();
+  private lastGeocodeAt = 0;
 }
+
+const GEOCODE_INTERVAL_MS = 1_100;

@@ -52,6 +52,7 @@ export const PERMISSIONS = [
   p('company.reports.read', 'Empresa', 'Visualizar relatórios e indicadores', 'COMPANY'),
   p('company.reviews.write', 'Empresa', 'Avaliar entregadores', 'COMPANY'),
   p('company.support.use', 'Empresa', 'Abrir chamados de suporte', 'COMPANY'),
+  p('company.b2b.manage', 'Empresa', 'Gerenciar centros de custo, unidades, entregas recorrentes e chaves de API', 'COMPANY'),
 
   // --- Plataforma: usuários e acesso ---
   p('users.read', 'Usuários', 'Visualizar usuários'),
@@ -87,6 +88,10 @@ export const PERMISSIONS = [
   p('payouts.read', 'Financeiro', 'Visualizar saques e repasses'),
   p('payouts.manage', 'Financeiro', 'Aprovar e processar saques e repasses'),
   p('finance.reports', 'Financeiro', 'Relatórios financeiros'),
+  p('contracts.read', 'B2B', 'Visualizar contratos corporativos'),
+  p('contracts.manage', 'B2B', 'Criar, ativar e encerrar contratos e tabelas especiais'),
+  p('invoices.read', 'B2B', 'Visualizar faturas corporativas'),
+  p('invoices.manage', 'B2B', 'Emitir, baixar e cancelar faturas'),
 
   // --- Plataforma: comercial / relacionamento ---
   p('coupons.manage', 'Comercial', 'Gerenciar cupons e campanhas'),
@@ -211,6 +216,9 @@ export const SYSTEM_ROLES: readonly RoleDefinition[] = [
       'companies.read',
       'drivers.read',
       'reports.read',
+      'contracts.read',
+      'invoices.read',
+      'invoices.manage',
     ],
   },
   {
@@ -235,6 +243,9 @@ export const SYSTEM_ROLES: readonly RoleDefinition[] = [
       'reports.read',
       'audit.read',
       'fraud.read',
+      'contracts.read',
+      'contracts.manage',
+      'invoices.read',
     ],
   },
   {

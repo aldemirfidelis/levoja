@@ -29,6 +29,7 @@ const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? val
 
 export class StopDto {
   @ApiPropertyOptional({ description: 'Endereço salvo do solicitante (alternativa aos campos abaixo)' }) @IsOptional() @IsUUID() addressId?: string;
+  @ApiPropertyOptional({ description: 'Unidade/local cadastrado da empresa (entregas corporativas e transferências)' }) @IsOptional() @IsUUID() locationId?: string;
   @ApiPropertyOptional({ description: 'Nome de quem entrega/recebe' }) @IsOptional() @IsString() @MaxLength(120) @Transform(trim) contactName?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(20) contactPhone?: string;
   @ApiPropertyOptional() @IsOptional() @Matches(/^\d{5}-?\d{3}$/) zipCode?: string;
@@ -70,6 +71,8 @@ export class CreateDeliveryDto extends DeliveryQuoteDto {
   @ApiProperty({ enum: PaymentMethod }) @IsEnum(PaymentMethod) paymentMethod!: PaymentMethod;
   @ApiPropertyOptional({ enum: ProofMethod, default: 'CODE' }) @IsOptional() @IsEnum(ProofMethod) proofMethod?: ProofMethod;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) @Max(100_000) tipCents?: number;
+  @ApiPropertyOptional({ description: 'Centro de custo (empresas)' }) @IsOptional() @IsUUID() costCenterId?: string;
+  @ApiPropertyOptional({ description: 'Sua referência (pedido, nota fiscal, protocolo)' }) @IsOptional() @IsString() @MaxLength(60) @Transform(trim) externalRef?: string;
 }
 
 export class CancelDeliveryDto {
@@ -101,6 +104,7 @@ export class LocationPointDto {
   @ApiPropertyOptional({ description: 'm/s' }) @IsOptional() @IsNumber() @Min(0) @Max(100) speed?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(360) heading?: number;
   @ApiPropertyOptional({ description: 'Momento da leitura no aparelho (sincronização offline)' }) @IsOptional() @IsDateString() recordedAt?: string;
+  @ApiPropertyOptional({ description: 'Leitura marcada pelo sistema como localização simulada (Android)' }) @IsOptional() @IsBoolean() mocked?: boolean;
 }
 
 export class LocationBatchDto {

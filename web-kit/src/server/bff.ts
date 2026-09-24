@@ -31,11 +31,26 @@ const FORWARDED_RESPONSE_HEADERS = ['content-type', 'content-disposition', 'x-re
 export function createBff(config: BffConfig) {
   const accessCookie = `${config.cookiePrefix}_at`;
   const refreshCookie = `${config.cookiePrefix}_rt`;
+  /** Id aleatório do navegador (sinal antifraude: várias contas no mesmo aparelho). */
+  const deviceCookie = `${config.cookiePrefix}_did`;
   const secure = process.env.NODE_ENV === 'production';
 
-  const apiHeaders = (request?: NextRequest): Record<string, string> => {
+  const deviceIdOf = (request?: NextRequest) => {
+    const value = request?.cookies.get(deviceCookie)?.value;
+    return value && /^[A-Za-z0-9_-]{16,128}$/.test(value) ? value : undefined;
+  };
+
+  /** Garante o cookie do aparelho na resposta (criado na primeira visita autenticada). */
+  const ensureDevice = (request: NextRequest, response: NextResponse, deviceId: string) => {
+    if (deviceIdOf(request) === deviceId) return;
+    response.cookies.set(deviceCookie, deviceId, { httpOnly: true, secure, sameSite: 'lax', path: '/', maxAge: 400 * 86_400 });
+  };
+
+  const apiHeaders = (request?: NextRequest, deviceId?: string): Record<string, string> => {
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (config.tenant) headers['X-Tenant'] = config.tenant;
+    const device = deviceId ?? deviceIdOf(request);
+    if (device) headers['X-Device-Id'] = device;
     const forwarded = request?.headers.get('x-forwarded-for');
     const userAgent = request?.headers.get('user-agent');
     if (forwarded) headers['X-Forwarded-For'] = forwarded;
@@ -71,11 +86,12 @@ export function createBff(config: BffConfig) {
 
   const csrfOk = (request: NextRequest) => request.method === 'GET' || request.headers.get('x-lj-csrf') === '1';
 
-  async function callApi(path: string, init: RequestInit & { request?: NextRequest; token?: string }) {
-    const headers = new Headers(init.headers);
-    for (const [key, value] of Object.entries(apiHeaders(init.request))) if (!headers.has(key)) headers.set(key, value);
-    if (init.token) headers.set('Authorization', `Bearer ${init.token}`);
-    return fetch(`${config.apiUrl}${path}`, { ...init, headers, cache: 'no-store', redirect: 'manual' });
+  async function callApi(path: string, init: RequestInit & { request?: NextRequest; token?: string; deviceId?: string }) {
+    const { request, token, deviceId, ...rest } = init;
+    const headers = new Headers(rest.headers);
+    for (const [key, value] of Object.entries(apiHeaders(request, deviceId))) if (!headers.has(key)) headers.set(key, value);
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    return fetch(`${config.apiUrl}${path}`, { ...rest, headers, cache: 'no-store', redirect: 'manual' });
   }
 
   async function refreshTokens(refreshToken: string, request: NextRequest): Promise<TokenPair | null> {
@@ -92,39 +108,50 @@ export function createBff(config: BffConfig) {
   async function login(request: NextRequest) {
     if (!csrfOk(request)) return json({ message: 'Requisição inválida.' }, 403);
     const body = await request.json().catch(() => ({}));
+    const deviceId = deviceIdOf(request) ?? crypto.randomUUID();
     const response = await callApi('/v1/auth/login', {
       method: 'POST',
       request,
+      deviceId,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...body, app: config.app }),
     });
-    return sessionResponse(response);
+    return withDevice(request, await sessionResponse(response), deviceId);
   }
 
   /** POST /api/auth/mfa */
   async function mfa(request: NextRequest) {
     if (!csrfOk(request)) return json({ message: 'Requisição inválida.' }, 403);
     const body = await request.text();
+    const deviceId = deviceIdOf(request) ?? crypto.randomUUID();
     const response = await callApi('/v1/auth/mfa/login', {
       method: 'POST',
       request,
+      deviceId,
       headers: { 'Content-Type': 'application/json' },
       body,
     });
-    return sessionResponse(response);
+    return withDevice(request, await sessionResponse(response), deviceId);
   }
 
   /** POST /api/auth/register/{customer|company|driver} */
   async function register(request: NextRequest, kind: string) {
     if (!csrfOk(request)) return json({ message: 'Requisição inválida.' }, 403);
     if (!['customer', 'company', 'driver'].includes(kind)) return json({ message: 'Não encontrado.' }, 404);
+    const deviceId = deviceIdOf(request) ?? crypto.randomUUID();
     const response = await callApi(`/v1/auth/register/${kind}`, {
       method: 'POST',
       request,
+      deviceId,
       headers: { 'Content-Type': 'application/json' },
       body: await request.text(),
     });
-    return sessionResponse(response);
+    return withDevice(request, await sessionResponse(response), deviceId);
+  }
+
+  function withDevice(request: NextRequest, response: NextResponse, deviceId: string) {
+    ensureDevice(request, response, deviceId);
+    return response;
   }
 
   async function sessionResponse(apiResponse: Response) {

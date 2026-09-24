@@ -7,6 +7,7 @@ import {
   Badge,
   Button,
   Card,
+  ConversationButtons,
   Divider,
   ErrorView,
   Field,
@@ -210,6 +211,10 @@ export default function OrderScreen() {
 
       {data.status === 'DELIVERED' && !data.reviewed ? <Review order={data} onDone={() => order.refetch()} /> : null}
 
+      {data.status !== 'PENDING_PAYMENT' ? (
+        <ConversationButtons orderId={data.id} onOpen={(conversationId, title) => router.push({ pathname: '/conversa/[id]', params: { id: conversationId, title } })} />
+      ) : null}
+
       <Section title="Resumo">
         <Card>
           <Stack gap={2}>
@@ -255,6 +260,7 @@ export default function OrderScreen() {
       </Section>
 
       {data.canCancel ? <Button title="Cancelar pedido" variant="secondary" onPress={() => setCanceling(true)} /> : null}
+      <Button title="Preciso de ajuda com este pedido" icon="help" variant="ghost" onPress={() => router.push({ pathname: '/ajuda/novo', params: { orderId: data.id, label: `Pedido #${data.number}` } })} />
       <ReasonDialog
         visible={canceling}
         title="Cancelar pedido"

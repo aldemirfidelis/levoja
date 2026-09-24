@@ -9,13 +9,10 @@ import { NotificationsService } from '../notifications/notifications.service';
 import type { AuthUser } from '../../common/auth/auth-user';
 import { Prisma } from '../../generated/prisma/client';
 
-/** Evento emitido antes da anonimização — módulos com dados próprios podem vetar ou complementar. */
-export const USER_ANONYMIZING = 'privacy.user.anonymizing';
+import { AnonymizationBlockers, USER_ANONYMIZED, USER_ANONYMIZING, USER_EXPORTING, UserExportCollector } from './privacy.events';
 
-export interface AnonymizationBlockers {
-  userId: string;
-  reasons: string[];
-}
+export { USER_ANONYMIZING, USER_ANONYMIZED, USER_EXPORTING } from './privacy.events';
+export type { AnonymizationBlockers } from './privacy.events';
 
 /**
  * Direitos do titular (LGPD art. 18): acesso/portabilidade (exportação) e eliminação.
@@ -65,6 +62,10 @@ export class PrivacyService {
     });
     await this.audit.log({ action: 'privacy.export', entityType: 'User', entityId: user.userId });
 
+    // Chat, chamados e outros módulos acrescentam o que guardam do titular.
+    const collector: UserExportCollector = { userId: user.userId, sections: {} };
+    await this.events.emitAsync(USER_EXPORTING, collector);
+
     const { passwordHash: _p, mfaSecretEncrypted: _m, cpfEncrypted, cpfHash: _h, driver, ...profile } = data;
     return {
       generatedAt: new Date().toISOString(),
@@ -73,6 +74,7 @@ export class PrivacyService {
       driver: driver
         ? { ...driver, cnhNumberEncrypted: undefined, cnhNumber: this.crypto.decryptNullable(driver.cnhNumberEncrypted) }
         : null,
+      ...collector.sections,
     };
   }
 
@@ -178,6 +180,8 @@ export class PrivacyService {
     });
 
     await Promise.all(fileKeys.map((key) => this.storage.delete(key)));
+    // Conteúdo escrito pelo titular em outros módulos (mensagens, chamados) é removido pelos ouvintes.
+    await this.events.emitAsync(USER_ANONYMIZED, { userId });
     await this.access.invalidate(userId);
     this.logger.log(`Usuário ${userId} anonimizado.`);
   }

@@ -1,10 +1,12 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { REVIEW_CREATED, ReviewCreatedEvent } from '../../common/intelligence-events';
 import { AuditService } from '../audit/audit.service';
 import { paginated, PaginationQueryDto, skipOf } from '../../common/pagination';
 import type { AuthUser } from '../../common/auth/auth-user';
 import { ReviewInputDto } from './deliveries.dto';
-import type { ActorType, ReviewSubject } from '../../generated/prisma/enums';
+import type { ActorType, ReviewSentiment, ReviewSubject } from '../../generated/prisma/enums';
 
 const REVIEW_WINDOW_DAYS = 7;
 
@@ -18,6 +20,7 @@ export class ReviewsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly events: EventEmitter2,
   ) {}
 
   private assertWindow(finishedAt: Date | null) {
@@ -51,6 +54,7 @@ export class ReviewsService {
       },
     });
     await this.recompute(subject.type, subject.id);
+    this.events.emit(REVIEW_CREATED, { tenantId, reviewId: review.id } satisfies ReviewCreatedEvent);
     return review;
   }
 
@@ -112,8 +116,13 @@ export class ReviewsService {
     return paginated(rows, total, query);
   }
 
-  async listForAdmin(tenantId: string, query: PaginationQueryDto & { maxRating?: number }) {
-    const where = { tenantId, ...(query.maxRating ? { rating: { lte: query.maxRating } } : {}) };
+  async listForAdmin(tenantId: string, query: PaginationQueryDto & { maxRating?: number; sentiment?: ReviewSentiment; theme?: string }) {
+    const where = {
+      tenantId,
+      ...(query.maxRating ? { rating: { lte: query.maxRating } } : {}),
+      ...(query.sentiment ? { sentiment: query.sentiment } : {}),
+      ...(query.theme ? { themes: { has: query.theme } } : {}),
+    };
     const [total, rows] = await this.prisma.$transaction([
       this.prisma.review.count({ where }),
       this.prisma.review.findMany({ where, orderBy: { createdAt: 'desc' }, skip: skipOf(query), take: query.pageSize }),

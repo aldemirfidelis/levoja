@@ -26,6 +26,7 @@ import {
   PartnerStatusBadge,
   Select,
   SkeletonRows,
+  SupportCenter,
   useToast,
 } from '@levoja/web-kit/ui';
 import { BankAccountForm, BankAccountView, Checklist, DocumentsManager, PartnerDoc, Requirement } from '@/components/partner-forms';
@@ -249,7 +250,7 @@ export default function DriverOnboardingPage() {
             {driver.status === 'APPROVED' && (
               <>
                 <p className="mt-3 flex items-center gap-2 text-sm text-muted">
-                  <Smartphone className="h-4 w-4" aria-hidden /> O app do entregador (Android) é liberado na etapa de aplicativos da plataforma.
+                  <Smartphone className="h-4 w-4" aria-hidden /> Use o app LevoJá Entregador para ficar online, receber ofertas e fazer as entregas.
                 </p>
                 <Link href="/entregador/ganhos" className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-brand-600 hover:underline">
                   <Wallet className="h-4 w-4" aria-hidden /> Ganhos, saques e chave PIX
@@ -284,6 +285,9 @@ export default function DriverOnboardingPage() {
             locked={editable ? undefined : 'Cadastro em análise: aguarde o resultado para enviar novos documentos.'}
             onChange={() => refetch()}
           />
+          <Card title="Atendimento">
+            <SupportCenter as="DRIVER" />
+          </Card>
         </div>
         <Card title="Checklist">
           <Checklist items={driver.requirements} />

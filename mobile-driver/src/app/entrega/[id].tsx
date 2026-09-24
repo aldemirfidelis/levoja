@@ -9,6 +9,7 @@ import {
   Button,
   Card,
   Chip,
+  ConversationButtons,
   ErrorView,
   formatBRL,
   Icon,
@@ -219,6 +220,8 @@ export default function DeliveryScreen() {
         </Stack>
       </Card>
 
+      <ConversationButtons deliveryId={data.id} onOpen={(conversationId, title) => router.push({ pathname: '/conversa/[id]', params: { id: conversationId, title } })} />
+
       {collect > 0 && active ? (
         <Card style={{ borderColor: colors.warning, borderWidth: 2 }}>
           <Text weight="700" tone="warning">
@@ -241,6 +244,7 @@ export default function DeliveryScreen() {
       ) : null}
       {beforePickup && active ? <Button title="Desistir desta entrega" variant="ghost" onPress={() => setDialog('release')} /> : null}
       {!beforePickup && active ? <Button title="Não consegui entregar" variant="ghost" onPress={() => setDialog('fail')} /> : null}
+      <Button title="Preciso de ajuda com esta entrega" icon="help" variant="ghost" onPress={() => router.push({ pathname: '/ajuda/novo', params: { deliveryId: data.id, label: `Entrega ${data.code}` } })} />
 
       {status === 'DELIVERED' && !pending.length && !reviewed ? <Review delivery={data} onDone={() => setReviewed(true)} /> : null}
       {status === 'CANCELED' || status === 'FAILED' ? (

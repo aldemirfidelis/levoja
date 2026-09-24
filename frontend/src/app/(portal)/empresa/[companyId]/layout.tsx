@@ -10,8 +10,11 @@ import { usePortal } from '@/lib/portal-session';
 
 const TABS: { path: string; label: string; permission: string | string[] | null; approvedOnly?: boolean }[] = [
   { path: '', label: 'Visão geral', permission: null },
+  { path: '/assistente', label: 'Assistente', permission: 'company.reports.read', approvedOnly: true },
   { path: '/pedidos', label: 'Pedidos', permission: 'company.orders.read', approvedOnly: true },
   { path: '/entregas', label: 'Entregas', permission: 'company.orders.read', approvedOnly: true },
+  { path: '/mensagens', label: 'Mensagens', permission: 'company.orders.read', approvedOnly: true },
+  { path: '/corporativo', label: 'Corporativo', permission: ['company.deliveries.request', 'company.finance.read', 'company.b2b.manage'], approvedOnly: true },
   { path: '/catalogo', label: 'Catálogo', permission: 'company.products.read' },
   { path: '/cupons', label: 'Cupons', permission: 'company.products.read', approvedOnly: true },
   { path: '/entrega', label: 'Área de entrega', permission: 'company.profile.manage' },
@@ -20,6 +23,7 @@ const TABS: { path: string; label: string; permission: string | string[] | null;
   { path: '/documentos', label: 'Documentos', permission: 'company.profile.manage' },
   { path: '/financeiro', label: 'Financeiro', permission: ['company.finance.read', 'company.profile.manage'] },
   { path: '/equipe', label: 'Equipe', permission: 'company.users.manage' },
+  { path: '/suporte', label: 'Atendimento', permission: 'company.support.use' },
 ];
 
 export default function CompanyLayout({ children, params }: { children: React.ReactNode; params: Promise<{ companyId: string }> }) {

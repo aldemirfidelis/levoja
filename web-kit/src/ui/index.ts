@@ -8,3 +8,7 @@ export * from './address-form';
 export * from './money-input';
 export * from './finance';
 export * from './coupons';
+export * from './charts';
+export * from './chat';
+export * from './support';
+export * from './report';

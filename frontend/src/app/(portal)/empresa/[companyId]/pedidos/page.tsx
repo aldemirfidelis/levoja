@@ -8,6 +8,7 @@ import {
   Badge,
   Button,
   cn,
+  ChatLauncher,
   ConfirmDialog,
   DataTable,
   Dialog,
@@ -163,6 +164,9 @@ function OrderDetail({ order, onClose, onChanged }: { order: CompanyOrderView; o
             )}
           </div>
         )}
+
+        {/* Conversas com o cliente e com o entregador (sem expor telefones). */}
+        <ChatLauncher orderId={order.id} deliveryId={order.delivery?.id} />
 
         <div className="rounded-lg bg-surface-2 p-3">
           <p className="font-medium">Cliente: {order.customer.firstName}</p>

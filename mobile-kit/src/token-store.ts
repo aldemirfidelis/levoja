@@ -22,3 +22,24 @@ export const tokenStore = {
     await SecureStore.deleteItemAsync(key()).catch(() => undefined);
   },
 };
+
+/**
+ * Id de instalação do app (sinal antifraude: várias contas no mesmo aparelho). Não identifica a
+ * pessoa nem autentica nada; some ao desinstalar o app. Não é segredo, então Math.random basta.
+ */
+let deviceId: string | null = null;
+const DEVICE_KEY = 'levoja.device';
+
+export async function getDeviceId(): Promise<string> {
+  if (deviceId) return deviceId;
+  try {
+    const stored = await SecureStore.getItemAsync(DEVICE_KEY);
+    if (stored && /^[A-Za-z0-9_-]{16,128}$/.test(stored)) return (deviceId = stored);
+  } catch {
+    // Armazenamento indisponível: gera um id só para esta sessão.
+  }
+  const random = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  deviceId = `${Date.now().toString(16)}${random}`;
+  await SecureStore.setItemAsync(DEVICE_KEY, deviceId, { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK }).catch(() => undefined);
+  return deviceId;
+}

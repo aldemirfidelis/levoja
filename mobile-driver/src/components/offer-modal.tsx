@@ -60,7 +60,7 @@ export function OfferModal({ offer }: { offer: Offer | null }) {
             <View style={{ height: 6, width: `${fraction * 100}%`, backgroundColor: countdown && countdown.seconds <= 10 ? colors.danger : colors.brand }} />
           </View>
           <Row justify="space-between">
-            <Text variant="heading">Nova entrega</Text>
+            <Text variant="heading">{offer.route ? `Rota com ${offer.route.stops} entregas` : 'Nova entrega'}</Text>
             <Badge label={countdown?.expired ? 'Expirada' : `${countdown?.seconds ?? 0}s`} tone={countdown && countdown.seconds <= 10 ? 'danger' : 'brand'} />
           </Row>
           <Text variant="display" tone="success">
@@ -71,12 +71,21 @@ export function OfferModal({ offer }: { offer: Offer | null }) {
               <Text weight="700">Coleta: </Text>
               {offer.pickupArea} · {offer.distanceToPickupKm.toLocaleString('pt-BR')} km de você
             </Text>
-            <Text>
-              <Text weight="700">Entrega: </Text>
-              {offer.dropoffArea}
-            </Text>
+            {offer.route ? (
+              <Text>
+                <Text weight="700">Entregas: </Text>
+                {offer.route.stops} paradas em sequência · {offer.route.distanceKm.toLocaleString('pt-BR')} km · ~{offer.route.durationMin} min
+              </Text>
+            ) : (
+              <Text>
+                <Text weight="700">Entrega: </Text>
+                {offer.dropoffArea}
+              </Text>
+            )}
+            {offer.route ? <Badge label="Ao aceitar, todas as entregas da rota ficam com você" tone="info" /> : null}
             <Text tone="muted">
-              {offer.totalDistanceKm.toLocaleString('pt-BR')} km no total · ~{offer.estimatedMinutes} min · {ITEM_CATEGORY_LABELS[offer.itemCategory]}
+              {offer.route ? '' : `${offer.totalDistanceKm.toLocaleString('pt-BR')} km no total · ~${offer.estimatedMinutes} min · `}
+              {ITEM_CATEGORY_LABELS[offer.itemCategory]}
               {offer.weightKg ? ` · ${offer.weightKg} kg` : ''} · {VEHICLE_TYPE_LABELS[offer.vehicleType]}
             </Text>
             {offer.paymentMethod === 'CASH' ? <Badge label="Cliente paga em dinheiro: receba na entrega" tone="warning" /> : null}

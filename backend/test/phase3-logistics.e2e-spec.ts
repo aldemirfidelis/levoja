@@ -375,7 +375,8 @@ describe('Fase 3 — Logística (E2E)', () => {
     const created = await ctx.http()
       .post(`/v1/companies/${company.companyId}/deliveries`)
       .set(auth(company.token))
-      .send({ dropoff: { street: 'Rua Cliente B2B', number: '7', city: 'Cidade Teste', state: 'SP', ...at(1) }, itemCategory: 'PACKAGE', paymentMethod: 'INVOICE' })
+      // Faturado exige contrato corporativo desde a Fase 7 (coberto no teste B2B); aqui importa a operação.
+      .send({ dropoff: { street: 'Rua Cliente B2B', number: '7', city: 'Cidade Teste', state: 'SP', ...at(1) }, itemCategory: 'PACKAGE', paymentMethod: 'CASH' })
       .expect(201);
     expect(created.body.pickup.street).toBe('Rua da Loja');
 

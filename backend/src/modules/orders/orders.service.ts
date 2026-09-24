@@ -24,6 +24,7 @@ import { paginated, skipOf } from '../../common/pagination';
 import type { AuthUser } from '../../common/auth/auth-user';
 import { AdminOrdersQueryDto, CheckoutDto, OrdersQueryDto, QuoteOrderDto } from './orders.dto';
 import { CouponsService } from '../coupons/coupons.service';
+import type { EtaModel } from '../../common/eta-model';
 import { Prisma } from '../../generated/prisma/client';
 import type { Coupon } from '../../generated/prisma/client';
 import type { ActorType, OrderStatus, PaymentMethod } from '../../generated/prisma/enums';
@@ -50,6 +51,12 @@ export type PaymentMethodPolicy = (
   method: PaymentMethod,
   context: { customerId: string; cardToken?: string },
 ) => Promise<{ allowed: boolean; reason?: string; initialStatus: OrderStatus }>;
+
+/**
+ * Regra executada no checkout, dentro da transação, depois da cotação (ex.: antifraude recusa
+ * dinheiro na entrega para conta de risco alto). Lança exceção para recusar o pedido.
+ */
+export type CheckoutGuard = (user: AuthUser, input: { customerId: string; companyId: string; paymentMethod: PaymentMethod; totalCents: number }) => Promise<void>;
 
 export type PaymentStarter = (user: AuthUser, order: { id: string; tenantId: string; number: number; totalCents: number; paymentMethod: PaymentMethod }, dto: CheckoutDto) => Promise<void>;
 
@@ -109,6 +116,18 @@ export class OrdersService implements OnModuleInit {
   }
 
   private paymentStarter?: PaymentStarter;
+  private readonly checkoutGuards: CheckoutGuard[] = [];
+
+  registerCheckoutGuard(guard: CheckoutGuard): void {
+    this.checkoutGuards.push(guard);
+  }
+
+  private etaModel: EtaModel | null = null;
+
+  /** Calibração do tempo de trajeto aprendida com o histórico (módulo de inteligência). */
+  registerEtaModel(model: EtaModel): void {
+    this.etaModel = model;
+  }
 
   /** O módulo financeiro registra aqui a política de pagamentos online e o início da cobrança. */
   registerPaymentPolicy(policy: PaymentMethodPolicy, starter?: PaymentStarter): void {
@@ -226,7 +245,17 @@ export class OrdersService implements OnModuleInit {
     if (dto.couponCode) {
       const evaluation = await this.coupons.evaluate(
         dto.couponCode,
-        { tenantId: user.tenantId, customerId, companyId: company.id, segmentId: company.segmentId, subtotalCents, deliveryFeeCents, at: scheduledFor ?? now, timeZone: company.timezone },
+        {
+          tenantId: user.tenantId,
+          customerId,
+          companyId: company.id,
+          segmentId: company.segmentId,
+          subtotalCents,
+          deliveryFeeCents,
+          at: scheduledFor ?? now,
+          timeZone: company.timezone,
+          dropoff: address ? { zipCode: address.zipCode, street: address.street, number: address.number } : null,
+        },
         tx,
       );
       if (evaluation.ok) {
@@ -238,9 +267,13 @@ export class OrdersService implements OnModuleInit {
     }
     const totalCents = subtotalCents + deliveryFeeCents + serviceFeeCents + tipCents - discountCents;
     const base = scheduledFor ?? now;
-    const readyAt = new Date(base.getTime() + company.averagePrepMinutes * 60_000);
+    // Preparo: o tempo real aprendido da loja (quando há histórico) prevalece sobre o informado.
+    const prepMinutes = company.learnedPrepMinutes ?? company.averagePrepMinutes;
+    const readyAt = new Date(base.getTime() + prepMinutes * 60_000);
+    const transitFactor =
+      fulfillment === 'DELIVERY' && address ? (this.etaModel?.calibration({ tenantId: user.tenantId, city: address.city, state: address.state, vehicleType, at: base })?.transitFactor ?? 1) : 1;
     const estimatedDeliveryAt =
-      fulfillment === 'DELIVERY' ? new Date(readyAt.getTime() + (durationMin + DISPATCH_BUFFER_MIN + extraMinutes) * 60_000) : readyAt;
+      fulfillment === 'DELIVERY' ? new Date(readyAt.getTime() + (Math.round(durationMin * transitFactor) + DISPATCH_BUFFER_MIN + extraMinutes) * 60_000) : readyAt;
 
     return {
       company,
@@ -315,6 +348,9 @@ export class OrdersService implements OnModuleInit {
         }
         if (dto.paymentMethod === 'CASH' && dto.changeForCents != null && dto.changeForCents < quote.totalCents) {
           throw new BadRequestException('O valor para troco deve ser maior que o total do pedido.');
+        }
+        for (const guard of this.checkoutGuards) {
+          await guard(user, { customerId, companyId: quote.company.id, paymentMethod: dto.paymentMethod, totalCents: quote.totalCents });
         }
 
         await this.reserveStock(tx, quote.lines);

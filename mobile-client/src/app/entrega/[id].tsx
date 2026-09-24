@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Share, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import QRCode from 'react-qr-code';
 import { DELIVERY_STATUS_LABELS, ITEM_CATEGORY_LABELS, PAYMENT_METHOD_LABELS, PROOF_METHOD_LABELS, VEHICLE_TYPE_LABELS, type DeliveryStatus } from '@levoja/shared';
 import {
@@ -8,6 +8,7 @@ import {
   Badge,
   Button,
   Card,
+  ConversationButtons,
   ErrorView,
   formatBRL,
   formatDateTime,
@@ -148,6 +149,8 @@ export default function DeliveryScreen() {
         </Card>
       ) : null}
 
+      <ConversationButtons deliveryId={data.id} onOpen={(conversationId, title) => router.push({ pathname: '/conversa/[id]', params: { id: conversationId, title } })} />
+
       <Section title="Detalhes">
         <Card>
           <Stack gap={2}>
@@ -178,6 +181,7 @@ export default function DeliveryScreen() {
       </Section>
 
       {CANCELABLE.includes(data.status) ? <Button title="Cancelar entrega" variant="secondary" onPress={() => setCanceling(true)} /> : null}
+      <Button title="Preciso de ajuda com esta entrega" icon="help" variant="ghost" onPress={() => router.push({ pathname: '/ajuda/novo', params: { deliveryId: data.id, label: `Entrega ${data.code}` } })} />
       <ReasonDialog
         visible={canceling}
         title="Cancelar entrega"

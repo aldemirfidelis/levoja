@@ -1,7 +1,8 @@
 import '@/lib/env';
 import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider, router } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -22,14 +23,18 @@ import {
   useRealtimeEvent,
 } from '@levoja/mobile-kit';
 import { AddressProvider } from '@/lib/address';
+import { openFromNotification } from '@/lib/navigation';
 
 void SplashScreen.preventAutoHideAsync();
+
+/** Canais do Android: promoções ficam num canal próprio (o cliente pode silenciá-lo no sistema). */
+const PUSH_CHANNELS = [{ id: 'promotions', name: 'Promoções', importance: Notifications.AndroidImportance.DEFAULT }];
 
 export default function RootLayout() {
   return (
     <QueryProvider>
       <ToastProvider>
-        <AuthProvider onSignedIn={() => void registerPushToken()} onBeforeLogout={unregisterPushToken}>
+        <AuthProvider onSignedIn={() => void registerPushToken(PUSH_CHANNELS)} onBeforeLogout={unregisterPushToken}>
           <Root />
         </AuthProvider>
       </ToastProvider>
@@ -43,10 +48,7 @@ function LiveUpdates() {
   useRealtimeEvent('order.updated', () => void invalidate('orders'));
   useRealtimeEvent('delivery.updated', () => void invalidate('deliveries', 'orders'));
   useRealtimeEvent('notification', () => void invalidate('me/notifications'));
-  useNotificationTaps((data) => {
-    if (typeof data.orderId === 'string') router.push(`/pedido/${data.orderId}`);
-    else if (typeof data.deliveryId === 'string') router.push(`/entrega/${data.deliveryId}`);
-  });
+  useNotificationTaps(openFromNotification);
   return null;
 }
 
@@ -95,6 +97,10 @@ function Root() {
               <Stack.Screen name="conta/notificacoes" options={{ title: 'Notificações' }} />
               <Stack.Screen name="conta/privacidade" options={{ title: 'Privacidade' }} />
               <Stack.Screen name="conta/creditos" options={{ title: 'Créditos' }} />
+              <Stack.Screen name="conversa/[id]" options={{ title: 'Conversa' }} />
+              <Stack.Screen name="ajuda/index" options={{ title: 'Meus chamados' }} />
+              <Stack.Screen name="ajuda/novo" options={{ title: 'Novo chamado', presentation: 'modal' }} />
+              <Stack.Screen name="ajuda/[id]" options={{ title: 'Chamado' }} />
             </Stack.Protected>
             <Stack.Protected guard={!signedIn}>
               <Stack.Screen name="(auth)" options={{ headerShown: false }} />

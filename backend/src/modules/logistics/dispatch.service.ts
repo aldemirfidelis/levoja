@@ -20,6 +20,8 @@ export interface OfferCreatedEvent {
   driverUserId: string;
   payoutCents: number;
   expiresAt: Date;
+  /** Rota (lote): quantidade de entregas oferecidas juntas. */
+  stops?: number;
 }
 
 type DispatchConfig = SettingValue<'dispatch'>;
@@ -71,6 +73,12 @@ export class DispatchService implements OnModuleInit {
   async start(deliveryId: string): Promise<void> {
     const delivery = await this.prisma.delivery.findUnique({ where: { id: deliveryId } });
     if (!delivery || !['PENDING', 'SCHEDULED'].includes(delivery.status)) return;
+    if (delivery.routeId) {
+      const route = await this.prisma.deliveryRoute.findUnique({ where: { id: delivery.routeId } });
+      if (route?.status === 'PLANNED') return this.startRoute(route.id);
+      // Rota já em busca: a entrega acompanha o líder. Rota distribuída/atribuída: segue sozinha.
+      if (route?.status === 'DISPATCHING') return;
+    }
     const config = await this.settings.get(delivery.tenantId, 'dispatch');
     await this.deliveries.transition(deliveryId, 'SEARCHING_DRIVER', { type: 'SYSTEM' }, {
       data: { dispatchAttempts: 0, searchRadiusKm: config.initialRadiusKm, searchStartedAt: new Date() },
@@ -87,12 +95,25 @@ export class DispatchService implements OnModuleInit {
 
     const config = await this.settings.get(delivery.tenantId, 'dispatch');
     const searchingFor = (Date.now() - (delivery.searchStartedAt ?? delivery.createdAt).getTime()) / 60_000;
+
+    // Rota de lote: só o líder recebe ofertas (a rota inteira vai para um único entregador).
+    const route = delivery.routeId ? await this.prisma.deliveryRoute.findUnique({ where: { id: delivery.routeId } }) : null;
+    const asRoute = route?.status === 'DISPATCHING';
+    if (asRoute && delivery.id !== route!.leadDeliveryId) return;
+    if (asRoute) {
+      const { routeFallbackMinutes } = await this.settings.get(delivery.tenantId, 'b2b');
+      if (searchingFor >= routeFallbackMinutes) {
+        await this.splitRoute(route!.id, 'Nenhum entregador disponível para a rota completa');
+        return;
+      }
+    }
+
     if (searchingFor >= config.maxSearchMinutes) {
       await this.deliveries.transition(deliveryId, 'CANCELED', { type: 'SYSTEM' }, { reason: 'Nenhum entregador disponível no momento.' });
       return;
     }
 
-    const [candidate] = await this.findCandidates(delivery, delivery.searchRadiusKm, config);
+    const [candidate] = await this.findCandidates(delivery, delivery.searchRadiusKm, config, asRoute ? { idleOnly: true } : undefined);
     if (!candidate) {
       const attempts = delivery.dispatchAttempts + 1;
       await this.prisma.delivery.update({
@@ -113,7 +134,7 @@ export class DispatchService implements OnModuleInit {
         data: {
           deliveryId,
           driverId: candidate.driverId,
-          payoutCents: delivery.payoutCents + delivery.tipCents,
+          payoutCents: asRoute ? await this.routePayout(tx, route!.id) : delivery.payoutCents + delivery.tipCents,
           distanceToPickupKm: Math.round(candidate.distanceKm * 100) / 100,
           expiresAt: new Date(Date.now() + config.offerTimeoutSeconds * 1000),
         },
@@ -128,10 +149,71 @@ export class DispatchService implements OnModuleInit {
       driverUserId: candidate.userId,
       payoutCents: offer.payoutCents,
       expiresAt: offer.expiresAt,
+      stops: asRoute ? route!.stopsCount : undefined,
     } satisfies OfferCreatedEvent);
   }
 
-  async findCandidates(delivery: Delivery, radiusKm: number, config: DispatchConfig): Promise<Candidate[]> {
+  // ---------------------------------------------------------------------------
+  // Rotas de lote (várias entregas, mesma coleta, um entregador)
+  // ---------------------------------------------------------------------------
+
+  /** Inicia a busca da rota inteira: todas as entregas entram em busca e o líder recebe as ofertas. */
+  async startRoute(routeId: string): Promise<void> {
+    const claimed = await this.prisma.deliveryRoute.updateMany({ where: { id: routeId, status: 'PLANNED' }, data: { status: 'DISPATCHING' } });
+    if (!claimed.count) return;
+    const route = await this.prisma.deliveryRoute.findUniqueOrThrow({ where: { id: routeId } });
+    const config = await this.settings.get(route.tenantId, 'dispatch');
+    const deliveries = await this.prisma.delivery.findMany({ where: { routeId, status: { in: ['PENDING', 'SCHEDULED'] } }, select: { id: true }, orderBy: { routeSequence: 'asc' } });
+    for (const item of deliveries) {
+      await this.deliveries
+        .transition(item.id, 'SEARCHING_DRIVER', { type: 'SYSTEM' }, { data: { dispatchAttempts: 0, searchRadiusKm: config.initialRadiusKm, searchStartedAt: new Date() } })
+        .catch(() => undefined);
+    }
+    const lead = await this.prisma.delivery.findFirst({ where: { routeId, status: 'SEARCHING_DRIVER' }, orderBy: { routeSequence: 'asc' }, select: { id: true } });
+    if (!lead) {
+      await this.prisma.deliveryRoute.update({ where: { id: routeId }, data: { status: 'CANCELED' } });
+      return;
+    }
+    await this.prisma.deliveryRoute.update({ where: { id: routeId }, data: { leadDeliveryId: lead.id } });
+    await this.offerNext(lead.id);
+  }
+
+  /**
+   * Mantém a rota em busca consistente: se o líder saiu da busca (ex.: cancelado pela empresa),
+   * a próxima entrega em busca assume; sem entregas em busca, a rota é encerrada.
+   */
+  async repairRoute(routeId: string): Promise<void> {
+    const route = await this.prisma.deliveryRoute.findUnique({ where: { id: routeId } });
+    if (!route || route.status !== 'DISPATCHING') return;
+    const lead = route.leadDeliveryId ? await this.prisma.delivery.findUnique({ where: { id: route.leadDeliveryId }, select: { status: true } }) : null;
+    if (lead?.status === 'SEARCHING_DRIVER') return;
+    const next = await this.prisma.delivery.findFirst({ where: { routeId, status: 'SEARCHING_DRIVER' }, orderBy: { routeSequence: 'asc' }, select: { id: true } });
+    if (!next) {
+      await this.prisma.deliveryRoute.updateMany({ where: { id: routeId, status: 'DISPATCHING' }, data: { status: 'CANCELED' } });
+      return;
+    }
+    await this.prisma.deliveryRoute.update({ where: { id: routeId }, data: { leadDeliveryId: next.id } });
+    await this.offerNext(next.id);
+  }
+
+  /** Ganho total da rota (entregas ainda em busca). */
+  private async routePayout(tx: Prisma.TransactionClient, routeId: string): Promise<number> {
+    const sum = await tx.delivery.aggregate({ where: { routeId, status: 'SEARCHING_DRIVER' }, _sum: { payoutCents: true, tipCents: true } });
+    return (sum._sum.payoutCents ?? 0) + (sum._sum.tipCents ?? 0);
+  }
+
+  /** Sem entregador para a rota completa: cada entrega passa a ser oferecida separadamente. */
+  async splitRoute(routeId: string, reason: string): Promise<void> {
+    const updated = await this.prisma.deliveryRoute.updateMany({ where: { id: routeId, status: 'DISPATCHING' }, data: { status: 'SPLIT' } });
+    if (!updated.count) return;
+    this.logger.log(`Rota ${routeId} distribuída individualmente: ${reason}.`);
+    const deliveries = await this.prisma.delivery.findMany({ where: { routeId, status: 'SEARCHING_DRIVER' }, select: { id: true } });
+    await this.prisma.deliveryOffer.updateMany({ where: { deliveryId: { in: deliveries.map((item) => item.id) }, status: 'PENDING' }, data: { status: 'CANCELED' } });
+    await this.prisma.delivery.updateMany({ where: { id: { in: deliveries.map((item) => item.id) } }, data: { searchStartedAt: new Date(), dispatchAttempts: 0 } });
+    for (const item of deliveries) await this.offerNext(item.id);
+  }
+
+  async findCandidates(delivery: Delivery, radiusKm: number, config: DispatchConfig, options: { idleOnly?: boolean } = {}): Promise<Candidate[]> {
     const pickup = { lat: delivery.pickupLat, lng: delivery.pickupLng };
     const degrees = radiusKm / 111 + 0.01;
     const freshSince = new Date(Date.now() - config.locationFreshSeconds * 1000);
@@ -175,6 +257,8 @@ export class DispatchService implements OnModuleInit {
       if (distanceKm > radiusKm) continue;
       if (!this.vehicleFits(driver.activeVehicle.type, delivery)) continue;
 
+      // Rotas de lote vão para entregadores livres (serão várias entregas de uma vez).
+      if (options.idleOnly && driver.deliveries.length > 0) continue;
       // Multipedidos: só agrupa com entregas ainda não coletadas e com coleta próxima.
       if (driver.deliveries.length >= config.maxConcurrentDeliveries) continue;
       if (driver.deliveries.length > 0) {
@@ -216,10 +300,14 @@ export class DispatchService implements OnModuleInit {
     const driverId = this.driverId(user);
     const offers = await this.prisma.deliveryOffer.findMany({
       where: { driverId, status: 'PENDING', expiresAt: { gt: new Date() } },
-      include: { delivery: true },
+      include: { delivery: { include: { route: true } } },
       orderBy: { createdAt: 'asc' },
     });
     return offers.map(({ delivery, ...offer }) => ({
+      route:
+        delivery.route && delivery.route.status === 'DISPATCHING'
+          ? { stops: delivery.route.stopsCount, distanceKm: delivery.route.distanceKm, durationMin: delivery.route.durationMin }
+          : null,
       id: offer.id,
       expiresAt: offer.expiresAt,
       secondsLeft: Math.max(0, Math.round((offer.expiresAt.getTime() - Date.now()) / 1000)),
@@ -267,9 +355,24 @@ export class DispatchService implements OnModuleInit {
       throw new ConflictException('Esta entrega já foi aceita por outro entregador.');
     }
     await this.jobs.cancel(`offer:${offer.id}`);
+    await this.assignRouteFollowers(offer.deliveryId, driverId, driver.activeVehicleId, user.userId);
     await this.prisma.driver.update({ where: { id: driverId }, data: { acceptedOffers: { increment: 1 } } });
     await this.refreshAvailability(driverId);
     return this.deliveries.driverView(await this.prisma.delivery.findUniqueOrThrow({ where: { id: offer.deliveryId }, include: deliveryInclude }));
+  }
+
+  /** Aceite de rota: as demais entregas da rota vão para o mesmo entregador. */
+  private async assignRouteFollowers(leadId: string, driverId: string, vehicleId: string | null, actorUserId: string) {
+    const lead = await this.prisma.delivery.findUnique({ where: { id: leadId }, select: { routeId: true } });
+    if (!lead?.routeId) return;
+    const claimed = await this.prisma.deliveryRoute.updateMany({ where: { id: lead.routeId, status: 'DISPATCHING' }, data: { status: 'ASSIGNED', driverId, assignedAt: new Date() } });
+    if (!claimed.count) return;
+    const followers = await this.prisma.delivery.findMany({ where: { routeId: lead.routeId, status: 'SEARCHING_DRIVER', id: { not: leadId } }, select: { id: true }, orderBy: { routeSequence: 'asc' } });
+    for (const follower of followers) {
+      await this.deliveries
+        .transition(follower.id, 'DRIVER_ASSIGNED', { type: 'DRIVER', id: actorUserId }, { expectedFrom: ['SEARCHING_DRIVER'], data: { driverId, vehicleId } })
+        .catch((error) => this.logger.warn(`Entrega ${follower.id} da rota não foi atribuída: ${(error as Error).message}`));
+    }
   }
 
   async decline(user: AuthUser, offerId: string, reason?: string) {
@@ -381,6 +484,9 @@ export class DispatchService implements OnModuleInit {
         take: 200,
       });
       for (const delivery of stale) await this.offerNext(delivery.id);
+
+      const routes = await this.prisma.deliveryRoute.findMany({ where: { status: 'DISPATCHING', updatedAt: { lt: new Date(now.getTime() - 60_000) } }, select: { id: true }, take: 200 });
+      for (const route of routes) await this.repairRoute(route.id);
     } catch (error) {
       this.logger.error(`Varredura do despacho falhou: ${(error as Error).message}`);
     }

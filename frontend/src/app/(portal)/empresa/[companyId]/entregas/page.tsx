@@ -28,6 +28,7 @@ export default function CompanyDeliveriesPage() {
         <DeliveryRequestForm
           basePath={base}
           isCompany
+          companyId={company.id}
           onCreated={(id) => {
             toast.success('Entrega solicitada.');
             setView({ mode: 'detail', id });

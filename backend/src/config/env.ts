@@ -88,6 +88,23 @@ export const envSchema = z
     PAYOUT_PROVIDER: z.enum(['manual', 'sandbox']).default('manual'),
     MERCHANT_CITY: z.string().default('SAO PAULO'),
 
+    /** Ligação mascarada entre cliente, loja e entregador: none (desativada) ou twilio (ponte telefônica). */
+    VOICE_PROVIDER: z.enum(['none', 'twilio']).default('none'),
+    TWILIO_ACCOUNT_SID: z.string().optional(),
+    TWILIO_AUTH_TOKEN: z.string().optional(),
+    /** Número da plataforma em E.164 (ex.: +551130000000), exibido nas duas pontas da ligação. */
+    TWILIO_CALLER_ID: z.string().regex(/^\+\d{10,15}$/).optional(),
+
+    /**
+     * IA assistiva (rascunhos de atendimento, assistente das empresas, análise de avaliações):
+     * none (recursos determinísticos, sem modelo de linguagem) ou anthropic (ANTHROPIC_API_KEY).
+     * A IA nunca executa ações críticas: sugere e a equipe decide.
+     */
+    AI_PROVIDER: z.enum(['none', 'anthropic']).default('none'),
+    ANTHROPIC_API_KEY: z.string().optional(),
+    AI_MODEL: z.string().min(3).default('claude-opus-5'),
+    AI_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(600_000).default(90_000),
+
     /** Token opcional exigido em /metrics (Authorization: Bearer ...). */
     METRICS_TOKEN: z.string().optional(),
     SWAGGER_ENABLED: bool,
@@ -107,6 +124,14 @@ export const envSchema = z
     }
     if (env.PAYMENT_GATEWAY === 'mercadopago' && !env.MERCADOPAGO_ACCESS_TOKEN) {
       ctx.addIssue({ code: 'custom', path: ['MERCADOPAGO_ACCESS_TOKEN'], message: 'obrigatório quando PAYMENT_GATEWAY=mercadopago' });
+    }
+    if (env.VOICE_PROVIDER === 'twilio') {
+      for (const key of ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_CALLER_ID'] as const) {
+        if (!env[key]) ctx.addIssue({ code: 'custom', path: [key], message: 'obrigatório quando VOICE_PROVIDER=twilio' });
+      }
+    }
+    if (env.AI_PROVIDER === 'anthropic' && !env.ANTHROPIC_API_KEY) {
+      ctx.addIssue({ code: 'custom', path: ['ANTHROPIC_API_KEY'], message: 'obrigatório quando AI_PROVIDER=anthropic' });
     }
     if (env.MAIL_DRIVER === 'smtp' && !env.SMTP_HOST) {
       ctx.addIssue({ code: 'custom', path: ['SMTP_HOST'], message: 'obrigatório quando MAIL_DRIVER=smtp' });

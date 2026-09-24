@@ -1,9 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Star } from 'lucide-react';
+import { REVIEW_SENTIMENT_LABELS, REVIEW_THEME_LABELS, REVIEW_THEMES, type ReviewSentiment, type ReviewTheme } from '@levoja/shared';
 import { api, Paginated, useApi } from '@levoja/web-kit/client';
 import { Badge, Button, ConfirmDialog, EmptyState, ErrorState, formatDateTime, PageHeader, Pagination, Select, SkeletonRows, useToast } from '@levoja/web-kit/ui';
+import { SENTIMENT_TONE } from '@/components/intelligence-nav';
+import { useUrlFilters } from '@/components/list-filters';
 
 interface Review {
   id: string;
@@ -15,18 +18,20 @@ interface Review {
   tags: string[];
   isHidden: boolean;
   hiddenReason: string | null;
+  sentiment: ReviewSentiment | null;
+  themes: ReviewTheme[];
+  analysisSource: 'lexicon' | 'ai' | null;
   createdAt: string;
 }
 
 const SUBJECT = { COMPANY: 'Loja', DRIVER: 'Entregador', CUSTOMER: 'Cliente' };
 const AUTHOR: Record<string, string> = { CUSTOMER: 'cliente', COMPANY: 'loja', DRIVER: 'entregador' };
 
-export default function ReviewsPage() {
+function ReviewsView() {
   const toast = useToast();
-  const [maxRating, setMaxRating] = useState('');
-  const [page, setPage] = useState(1);
+  const [filters, setFilters] = useUrlFilters({ maxRating: '', sentiment: '', theme: '', page: '1' });
   const [hiding, setHiding] = useState<Review | null>(null);
-  const { data, error, isLoading, refetch } = useApi<Paginated<Review>>('admin/reviews', { maxRating, page, pageSize: 20 });
+  const { data, error, isLoading, refetch } = useApi<Paginated<Review>>('admin/reviews', { ...filters, pageSize: 20 });
 
   const show = async (review: Review) => {
     try {
@@ -41,20 +46,35 @@ export default function ReviewsPage() {
   return (
     <>
       <PageHeader title="Avaliações" description="Moderação: avaliações ocultadas deixam de contar na média do avaliado." />
-      <Select
-        className="mb-4 sm:w-56"
-        aria-label="Filtrar por nota"
-        value={maxRating}
-        placeholder="Todas as notas"
-        options={[
-          { value: '2', label: 'Até 2 estrelas' },
-          { value: '3', label: 'Até 3 estrelas' },
-        ]}
-        onChange={(e) => {
-          setMaxRating(e.target.value);
-          setPage(1);
-        }}
-      />
+      <div className="mb-4 flex flex-wrap gap-3">
+        <Select
+          className="sm:w-48"
+          aria-label="Filtrar por nota"
+          value={filters.maxRating}
+          placeholder="Todas as notas"
+          options={[
+            { value: '2', label: 'Até 2 estrelas' },
+            { value: '3', label: 'Até 3 estrelas' },
+          ]}
+          onChange={(e) => setFilters({ maxRating: e.target.value })}
+        />
+        <Select
+          className="sm:w-48"
+          aria-label="Filtrar por sentimento"
+          value={filters.sentiment}
+          placeholder="Qualquer sentimento"
+          options={Object.entries(REVIEW_SENTIMENT_LABELS).map(([value, label]) => ({ value, label }))}
+          onChange={(e) => setFilters({ sentiment: e.target.value })}
+        />
+        <Select
+          className="sm:w-56"
+          aria-label="Filtrar por tema"
+          value={filters.theme}
+          placeholder="Qualquer tema"
+          options={REVIEW_THEMES.map((theme) => ({ value: theme, label: REVIEW_THEME_LABELS[theme] }))}
+          onChange={(e) => setFilters({ theme: e.target.value })}
+        />
+      </div>
       {isLoading && <SkeletonRows />}
       {error && <ErrorState error={error} onRetry={() => refetch()} />}
       {data?.data.length === 0 && <EmptyState icon={<Star className="h-8 w-8" />} title="Nenhuma avaliação" />}
@@ -69,6 +89,12 @@ export default function ReviewsPage() {
                 </span>
                 <Badge>{SUBJECT[review.subjectType]}</Badge>
                 <span className="text-muted">por {AUTHOR[review.authorType] ?? review.authorType} · {formatDateTime(review.createdAt)}</span>
+                {review.sentiment && (
+                  <Badge tone={SENTIMENT_TONE[review.sentiment]}>
+                    {REVIEW_SENTIMENT_LABELS[review.sentiment]}
+                    {review.analysisSource === 'ai' ? ' (IA)' : ''}
+                  </Badge>
+                )}
                 {review.isHidden && <Badge tone="danger">Oculta</Badge>}
               </p>
               {review.isHidden ? (
@@ -83,11 +109,18 @@ export default function ReviewsPage() {
             </div>
             {review.comment && <p className="mt-2 text-sm">{review.comment}</p>}
             {review.tags.length > 0 && <p className="mt-1 text-xs text-muted">{review.tags.join(' · ')}</p>}
+            {review.themes.length > 0 && (
+              <p className="mt-2 flex flex-wrap gap-1">
+                {review.themes.map((theme) => (
+                  <Badge key={theme}>{REVIEW_THEME_LABELS[theme] ?? theme}</Badge>
+                ))}
+              </p>
+            )}
             {review.hiddenReason && <p className="mt-1 text-xs text-danger">Motivo da ocultação: {review.hiddenReason}</p>}
           </article>
         ))}
       </div>
-      {data && <Pagination page={data.meta.page} totalPages={data.meta.totalPages} total={data.meta.total} onChange={setPage} />}
+      {data && <Pagination page={data.meta.page} totalPages={data.meta.totalPages} total={data.meta.total} onChange={(page) => setFilters({ page: String(page) })} />}
       {hiding && (
         <ConfirmDialog
           open
@@ -105,5 +138,13 @@ export default function ReviewsPage() {
         />
       )}
     </>
+  );
+}
+
+export default function ReviewsPage() {
+  return (
+    <Suspense>
+      <ReviewsView />
+    </Suspense>
   );
 }

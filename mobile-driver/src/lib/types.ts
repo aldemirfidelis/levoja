@@ -28,6 +28,8 @@ export interface Offer {
   paymentMethod: PaymentMethod | null;
   kind: 'ORDER' | 'ON_DEMAND';
   notes: string | null;
+  /** Rota de lote: várias entregas com a mesma coleta, aceitas juntas. */
+  route?: { stops: number; distanceKm: number; durationMin: number } | null;
 }
 
 export interface Stop {

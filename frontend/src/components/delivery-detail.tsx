@@ -6,7 +6,7 @@ import QRCode from 'react-qr-code';
 import { Star } from 'lucide-react';
 import { DELIVERY_STATUS_LABELS, formatBRL, ITEM_CATEGORY_LABELS, ItemCategory, PROOF_METHOD_LABELS, VEHICLE_TYPE_LABELS } from '@levoja/shared';
 import { api, useApi, useRealtime } from '@levoja/web-kit/client';
-import { Badge, Button, Card, cn, ConfirmDialog, ErrorState, formatDateTime, SkeletonRows, useToast } from '@levoja/web-kit/ui';
+import { Badge, Button, Card, ChatLauncher, cn, ConfirmDialog, ErrorState, formatDateTime, SkeletonRows, useToast } from '@levoja/web-kit/ui';
 import type { MapMarker } from '@levoja/web-kit/map';
 import type { DeliveryView } from './delivery-types';
 
@@ -115,7 +115,7 @@ export function DeliveryDetail({ path, canCancel = true, canReview = true }: { p
           </Card>
         )}
         {data.driver && (
-          <Card title="Entregador">
+          <Card title="Entregador" actions={<ChatLauncher deliveryId={data.id} />}>
             <p className="font-semibold">
               {data.driver.name} <span className="text-sm font-normal text-muted">★ {data.driver.rating ? data.driver.rating.toFixed(1) : 'novo'}</span>
             </p>

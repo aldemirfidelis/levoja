@@ -9,6 +9,8 @@ export interface RequestContextData {
   requestId: string;
   ip?: string;
   userAgent?: string;
+  /** Id do aparelho (app: id de instalação; web: cookie do BFF) — sinal antifraude, nunca autenticação. */
+  deviceId?: string;
   userId?: string;
   tenantId?: string;
 }

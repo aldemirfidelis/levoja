@@ -23,6 +23,8 @@ export interface AccessProfile {
 export interface AuthUser extends AccessProfile {
   /** Família do refresh token (identifica a sessão). */
   sessionId: string;
+  /** Presente quando a requisição foi autenticada por chave de API de empresa. */
+  apiKeyId?: string;
   can(permission: PermissionKey | string): boolean;
   canInCompany(companyId: string, permission: PermissionKey | string): boolean;
 }
