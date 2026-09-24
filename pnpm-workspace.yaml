@@ -1,0 +1,10 @@
+packages:
+  - backend
+  - frontend
+  - admin
+  - mobile-client
+  - mobile-driver
+  - mobile-kit
+  - shared
+  - web-kit
+  - scripts

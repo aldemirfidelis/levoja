@@ -1,0 +1,39 @@
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# env — never commit real credentials
+.env
+.env.*
+!.env.example
+
+# local data
+.data/
+storage/
+.test-storage/
+*.log
+
+# expo / react native
+.expo/
+dist-export/
+android/
+ios/
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+
+# generated
+backend/src/generated/
+
+# os / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

@@ -1,0 +1,82 @@
+# Infraestrutura de desenvolvimento do LevoJá.
+#   docker compose -f infrastructure/docker-compose.yml up -d
+#
+# Serviços:
+#   postgres  -> localhost:5433  (usuário/senha/banco: levoja/levoja/levoja + banco levoja_test)
+#   redis     -> localhost:6379
+#   minio     -> API S3 localhost:9000, console http://localhost:9001 (levoja / levoja-minio-dev)
+#   mailpit   -> SMTP localhost:1025, caixa de entrada http://localhost:8025
+#
+# Credenciais abaixo são EXCLUSIVAS de desenvolvimento local.
+name: levoja
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: levoja
+      POSTGRES_PASSWORD: levoja
+      POSTGRES_DB: levoja
+    ports:
+      - '5433:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U levoja -d levoja']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: levoja
+      MINIO_ROOT_PASSWORD: levoja-minio-dev
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - minio-data:/data
+
+  # Cria o bucket na primeira execução.
+  minio-setup:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 levoja levoja-minio-dev; do sleep 1; done;
+      mc mb --ignore-existing local/levoja;
+      mc anonymous set download local/levoja/public;
+      exit 0;
+      "
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - '1025:1025'
+      - '8025:8025'
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:

@@ -1,0 +1,4 @@
+@import "tailwindcss";
+@import "@levoja/web-kit/theme.css";
+
+@source "../../../web-kit/src";

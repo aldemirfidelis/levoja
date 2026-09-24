@@ -1,0 +1,21 @@
+{
+  "name": "@levoja/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Contratos compartilhados (permissões, status, máquinas de estado, validações) entre backend, web e apps.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test dist/**/*.test.js",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "24",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,99 @@
+/*
+ * Tema compartilhado (Tailwind CSS v4).
+ * Cores semânticas via variáveis CSS com modo claro/escuro:
+ *  - automático pelo sistema (prefers-color-scheme), ou
+ *  - forçado com data-theme="light" | "dark" no <html>.
+ */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --color-brand-50: #fff4ed;
+  --color-brand-100: #ffe6d5;
+  --color-brand-200: #ffc9aa;
+  --color-brand-300: #ffa274;
+  --color-brand-400: #ff6f3c;
+  --color-brand-500: #ff5a1f;
+  --color-brand-600: #f03d0b;
+  --color-brand-700: #c72b0b;
+  --color-brand-800: #9e2412;
+  --color-brand-900: #7f2113;
+
+  --color-bg: var(--lj-bg);
+  --color-surface: var(--lj-surface);
+  --color-surface-2: var(--lj-surface-2);
+  --color-border: var(--lj-border);
+  --color-fg: var(--lj-fg);
+  --color-muted: var(--lj-muted);
+  --color-success: var(--lj-success);
+  --color-warning: var(--lj-warning);
+  --color-danger: var(--lj-danger);
+  --color-info: var(--lj-info);
+}
+
+:root {
+  --lj-bg: #f6f7f9;
+  --lj-surface: #ffffff;
+  --lj-surface-2: #f1f3f6;
+  --lj-border: #e3e6eb;
+  --lj-fg: #111827;
+  --lj-muted: #6b7280;
+  --lj-success: #16a34a;
+  --lj-warning: #d97706;
+  --lj-danger: #dc2626;
+  --lj-info: #2563eb;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --lj-bg: #0d1117;
+    --lj-surface: #161b22;
+    --lj-surface-2: #1f2630;
+    --lj-border: #2d3440;
+    --lj-fg: #e6edf3;
+    --lj-muted: #9aa4b2;
+    --lj-success: #3fb950;
+    --lj-warning: #e3a008;
+    --lj-danger: #f85149;
+    --lj-info: #58a6ff;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --lj-bg: #0d1117;
+  --lj-surface: #161b22;
+  --lj-surface-2: #1f2630;
+  --lj-border: #2d3440;
+  --lj-fg: #e6edf3;
+  --lj-muted: #9aa4b2;
+  --lj-success: #3fb950;
+  --lj-warning: #e3a008;
+  --lj-danger: #f85149;
+  --lj-info: #58a6ff;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--lj-bg);
+  color: var(--lj-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes lj-shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.lj-skeleton {
+  background: linear-gradient(90deg, var(--lj-surface-2) 25%, var(--lj-border) 37%, var(--lj-surface-2) 63%);
+  background-size: 800px 100%;
+  animation: lj-shimmer 1.4s ease infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lj-skeleton { animation: none; }
+}

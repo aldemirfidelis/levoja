@@ -1,0 +1,56 @@
+{
+  "name": "@levoja/mobile-kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Kit compartilhado dos apps (Expo): cliente HTTP com tokens seguros, autenticação, dados, tempo real, push, tema, UI e telas de conta.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@levoja/shared": "workspace:*"
+  },
+  "peerDependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/netinfo": "12.0.1",
+    "@tanstack/react-query": "^5",
+    "expo": "~57.0.25",
+    "expo-clipboard": "~57.0.2",
+    "expo-constants": "~57.0.19",
+    "expo-device": "~57.0.2",
+    "expo-file-system": "~57.0.7",
+    "expo-image-picker": "~57.0.20",
+    "expo-location": "~57.0.20",
+    "expo-notifications": "~57.0.21",
+    "expo-router": "~57.0.23",
+    "expo-secure-store": "~57.0.4",
+    "expo-sharing": "~57.0.22",
+    "expo-symbols": "~57.0.3",
+    "expo-web-browser": "~57.0.3",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-svg": "15.15.4",
+    "react-native-webview": "13.16.1",
+    "react-qr-code": "^2.2.0",
+    "socket.io-client": "^4"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/react": "~19.2.2",
+    "jest": "^29.7.0",
+    "jest-expo": "~57.0.5",
+    "typescript": "~6.0.3",
+    "expo": "~57.0.25",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "expo-router": "~57.0.23",
+    "@tanstack/react-query": "^5"
+  },
+  "jest": {
+    "preset": "jest-expo"
+  }
+}

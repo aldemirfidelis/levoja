@@ -1,0 +1,31 @@
+{
+  "name": "levoja",
+  "private": true,
+  "version": "0.1.0",
+  "description": "LevoJá — marketplace, delivery e logística sob demanda",
+  "packageManager": "pnpm@9.7.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build:shared": "pnpm --filter @levoja/shared build",
+    "db:embedded": "node scripts/dev-db.mjs",
+    "dev:api": "pnpm --filter @levoja/backend dev",
+    "dev:web": "pnpm --filter @levoja/frontend dev",
+    "dev:admin": "pnpm --filter @levoja/admin dev",
+    "build": "pnpm -r --filter !@levoja/mobile-* build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "postinstall": "pnpm --filter @levoja/shared build",
+    "dev:client": "pnpm --filter @levoja/mobile-client start",
+    "dev:driver": "pnpm --filter @levoja/mobile-driver start"
+  },
+  "pnpm": {
+    "overrides": {
+      "react": "19.2.3",
+      "react-dom": "19.2.3",
+      "@types/react": "~19.2.2"
+    }
+  }
+}

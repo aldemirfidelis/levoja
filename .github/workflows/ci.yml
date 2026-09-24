@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (lint, tipos, unitários, E2E)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: levoja
+          POSTGRES_PASSWORD: levoja
+          POSTGRES_DB: levoja_test
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U levoja"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL_TEST: postgresql://levoja:levoja@localhost:5433/levoja_test
+      DATABASE_URL: postgresql://levoja:levoja@localhost:5433/levoja_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @levoja/backend... --filter @levoja/shared
+      - run: pnpm --filter @levoja/shared test
+      - run: pnpm --filter @levoja/backend exec prisma generate
+      - run: pnpm --filter @levoja/backend typecheck
+      - run: pnpm --filter @levoja/backend test
+      - run: pnpm --filter @levoja/backend test:e2e
+      - run: pnpm --filter @levoja/backend build
+
+  web:
+    name: Web (portal e admin)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @levoja/frontend... --filter @levoja/admin... --filter @levoja/shared
+      - run: pnpm --filter @levoja/frontend typecheck && pnpm --filter @levoja/frontend build
+      - run: pnpm --filter @levoja/admin typecheck && pnpm --filter @levoja/admin build
+
+  mobile:
+    name: Apps (kit, cliente e entregador)
+    runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_API_URL: https://api.exemplo.invalid
+      EXPO_PUBLIC_WEB_URL: https://www.exemplo.invalid
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @levoja/mobile-client... --filter @levoja/mobile-driver... --filter @levoja/shared
+      - run: pnpm --filter @levoja/mobile-kit typecheck && pnpm --filter @levoja/mobile-kit test
+      - run: pnpm --filter @levoja/mobile-client typecheck && pnpm --filter @levoja/mobile-client test
+      - run: pnpm --filter @levoja/mobile-driver typecheck && pnpm --filter @levoja/mobile-driver test
+      - name: Bundle Android (Metro/Hermes)
+        run: pnpm --filter @levoja/mobile-client export:android && pnpm --filter @levoja/mobile-driver export:android
