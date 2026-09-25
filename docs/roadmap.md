@@ -154,3 +154,19 @@ responder cliente) ficam com uma pessoa, e toda ação automática é leve, conf
 | Interfaces: painel (Tenants, Marca, Cidades, Planos SaaS), portal (Plano, Integrações, Marca própria, página pública da loja, Onde atendemos, planos na página para empresas) | ✅ |
 | Testes: unitários (assinatura e segurança dos webhooks) e E2E da escala (tenants, cidades, planos e cobrança, API pública, webhooks e marca própria) | ✅ |
 | Publicação dos apps de cada marca nas lojas (contas da própria marca) | ⏳ depende das contas de cada cliente |
+
+## Fase 10 — Complementos ✅
+
+Itens do prompt mestre que faltavam para concluir o projeto (§4, §28, §50, §51 e §58).
+
+| Item | Status |
+|---|---|
+| Home do cliente (§4): lojas favoritas, promoções das lojas que atendem o endereço, cupons listados, pedidos recentes com "pedir de novo", atalhos de fidelidade e indicação | ✅ |
+| Cupons com divulgação: só com código, listados no app ou exclusivos de um nível de fidelidade (conferido no checkout) | ✅ |
+| Fidelidade (§28): pontos por pedido entregue, níveis pelos pontos dos últimos 12 meses (multiplicador e cashback), troca de pontos por créditos, expiração por inatividade, ajuste manual auditado, revisão diária de níveis — desligada por padrão | ✅ |
+| Indique e ganhe (§50) para clientes, entregadores e empresas: código por pessoa, código no cadastro (apps e portal), link de convite `/convite/<código>`, meta por programa com prazo, recompensas nas carteiras, limite mensal, retenção antifraude por aparelho compartilhado com sinal de risco e liberação/recusa pela equipe — desligado por padrão | ✅ |
+| Frota própria (§51): empresa convida entregadores pelo e-mail/celular, entregador aceita/recusa/sai pelo app, empresa remove; telefone mascarado para a empresa | ✅ |
+| PWA do portal (§58): manifesto com a marca do tenant, ícones gerados, service worker com página offline, convite de instalação e notificações do navegador com a aba em segundo plano | ✅ |
+| Configurações salvas antes de novos campos continuam válidas (valores novos assumem o padrão) | ✅ |
+| Interfaces: app do cliente (Home, favoritas, Fidelidade, Indique e ganhe, Meus cupons, cupons na sacola, código no cadastro), app do entregador (Frota própria, Indique e ganhe, código no cadastro), portal (Frota própria, Indique e ganhe da empresa e do cliente, convite, código no cadastro, PWA) e painel (Fidelidade e indicação, cupons por nível) | ✅ |
+| Testes: E2E dos complementos (Home, cupons de nível, fidelidade com pedido entregue de verdade, três programas de indicação pagos no mesmo pedido, antifraude e supervisão, frota própria) | ✅ |

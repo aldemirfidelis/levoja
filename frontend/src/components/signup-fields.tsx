@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { isValidCpf, isValidEmail, normalizeBrazilianPhone, passwordIssues } from '@levoja/shared';
+import { formatBRL, isValidCpf, isValidEmail, normalizeBrazilianPhone, normalizeReferralCode, passwordIssues, type ReferralProgram } from '@levoja/shared';
+import { api } from '@levoja/web-kit/client';
 import { Checkbox, Input } from '@levoja/web-kit/ui';
 
 export interface PersonForm {
@@ -10,9 +12,59 @@ export interface PersonForm {
   phone: string;
   password: string;
   cpf: string;
+  /** Código de quem indicou (opcional). */
+  referralCode: string;
 }
 
-export const emptyPerson: PersonForm = { name: '', email: '', phone: '', password: '', cpf: '' };
+export const emptyPerson: PersonForm = { name: '', email: '', phone: '', password: '', cpf: '', referralCode: '' };
+
+/** Corpo do cadastro: código de indicação vazio não é enviado. */
+export function personBody(form: PersonForm) {
+  const { referralCode, ...rest } = form;
+  return { ...rest, referralCode: normalizeReferralCode(referralCode) || undefined };
+}
+
+interface ReferralCheck {
+  valid: boolean;
+  reason?: string;
+  referredRewardCents?: number;
+  goal?: string;
+}
+
+/** Código de indicação: pré-preenchido pelo link de convite (?indicacao=) e conferido enquanto digita. */
+export function ReferralField({ value, onChange, program }: { value: string; onChange: (value: string) => void; program: ReferralProgram }) {
+  const [check, setCheck] = useState<ReferralCheck | null>(null);
+  const code = normalizeReferralCode(value);
+  useEffect(() => {
+    setCheck(null);
+    if (code.length < 4) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      api
+        .get<ReferralCheck>('referrals/validate', { code, program }, controller.signal)
+        .then(setCheck)
+        .catch(() => undefined);
+    }, 400);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [code, program]);
+  const hint = check?.valid
+    ? `Código aplicado${check.referredRewardCents ? `: você ganha ${formatBRL(check.referredRewardCents)}` : ''}${check.goal ? ` (${check.goal.charAt(0).toLowerCase()}${check.goal.slice(1)})` : ''}.`
+    : 'Opcional. Recebeu um convite? Informe o código de quem indicou.';
+  return (
+    <Input
+      label="Código de indicação (opcional)"
+      value={value}
+      maxLength={20}
+      autoComplete="off"
+      hint={hint}
+      error={check && !check.valid ? (check.reason ?? 'Código não encontrado.') : undefined}
+      onChange={(e) => onChange(e.target.value.toUpperCase())}
+    />
+  );
+}
 
 /** Validação no cliente (feedback imediato). A API revalida tudo. */
 export function validatePerson(form: PersonForm, cpfRequired: boolean): Partial<Record<keyof PersonForm, string>> {
@@ -35,12 +87,21 @@ export function PersonFields({
   setForm,
   errors,
   cpfRequired,
+  program,
 }: {
   form: PersonForm;
   setForm: (form: PersonForm) => void;
   errors: Partial<Record<keyof PersonForm, string>>;
   cpfRequired: boolean;
+  /** Programa de indicação deste cadastro (mostra o campo de código). */
+  program?: ReferralProgram;
 }) {
+  // Link de convite: /cadastro/...?indicacao=CODIGO
+  useEffect(() => {
+    const invited = new URLSearchParams(window.location.search).get('indicacao');
+    if (program && invited && !form.referralCode) setForm({ ...form, referralCode: invited.toUpperCase() });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <Input className="sm:col-span-2" label="Nome completo" autoComplete="name" required value={form.name} error={errors.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -64,6 +125,11 @@ export function PersonFields({
         error={errors.password}
         onChange={(e) => setForm({ ...form, password: e.target.value })}
       />
+      {program && (
+        <div className="sm:col-span-2">
+          <ReferralField program={program} value={form.referralCode} onChange={(referralCode) => setForm({ ...form, referralCode })} />
+        </div>
+      )}
     </div>
   );
 }

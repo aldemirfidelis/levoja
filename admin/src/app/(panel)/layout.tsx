@@ -34,6 +34,7 @@ import {
   Users,
   Lock,
   TicketPercent,
+  Trophy,
   Wallet,
   X,
 } from 'lucide-react';
@@ -56,6 +57,7 @@ const NAV = [
   { href: '/financeiro', label: 'Financeiro', icon: Wallet, permission: 'payments.read' },
   { href: '/precos', label: 'Precificação', icon: Calculator, permission: 'pricing.read' },
   { href: '/cupons', label: 'Cupons', icon: TicketPercent, permission: 'coupons.manage' },
+  { href: '/fidelidade', label: 'Fidelidade e indicação', icon: Trophy, permission: 'coupons.manage' },
   { href: '/comunicados', label: 'Comunicados', icon: Megaphone, permission: 'notifications.broadcast' },
   { href: '/papeis', label: 'Papéis e permissões', icon: ShieldCheck, permission: 'roles.read' },
   { href: '/avaliacoes', label: 'Avaliações', icon: Star, permission: 'reviews.moderate' },

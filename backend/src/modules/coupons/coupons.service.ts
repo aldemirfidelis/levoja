@@ -25,6 +25,8 @@ export interface CouponInput {
   maxRedemptions?: number | null;
   maxPerCustomer?: number;
   isActive?: boolean;
+  visibility?: 'CODE' | 'PUBLIC' | 'TIER';
+  minTier?: string | null;
 }
 
 export interface CouponContext {
@@ -155,6 +157,7 @@ export class CouponsService {
     if (input.type === 'FIXED' && !(input.amountCents && input.amountCents > 0)) throw new BadRequestException('Informe o valor do desconto.');
     if ((input.fromTime && !input.toTime) || (!input.fromTime && input.toTime)) throw new BadRequestException('Informe início e fim da janela de horário.');
     if (input.startsAt && input.endsAt && new Date(input.endsAt) <= new Date(input.startsAt)) throw new BadRequestException('O fim deve ser depois do início.');
+    if (input.visibility === 'TIER' && !input.minTier) throw new BadRequestException('Informe o nível de fidelidade mínimo do cupom exclusivo.');
   }
 
   async create(tenantId: string, input: CouponInput, owner: { companyId?: string; fundedBy: CouponFunding }) {
@@ -171,6 +174,7 @@ export class CouponsService {
         endsAt: input.endsAt ? new Date(input.endsAt) : null,
         companyId: owner.companyId ?? null,
         fundedBy: owner.fundedBy,
+        minTier: input.visibility === 'TIER' ? input.minTier : null,
       },
     });
     await this.audit.log({ action: 'coupon.create', entityType: 'Coupon', entityId: coupon.id, after: { code, type: input.type, fundedBy: owner.fundedBy } });
@@ -188,6 +192,7 @@ export class CouponsService {
         ...rest,
         startsAt: input.startsAt === undefined ? undefined : input.startsAt ? new Date(input.startsAt) : null,
         endsAt: input.endsAt === undefined ? undefined : input.endsAt ? new Date(input.endsAt) : null,
+        ...(input.visibility && input.visibility !== 'TIER' ? { minTier: null } : {}),
       },
     });
     await this.audit.log({ action: 'coupon.update', entityType: 'Coupon', entityId: id, ...diff(coupon, updated) });

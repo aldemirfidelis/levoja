@@ -12,11 +12,13 @@ function AdminCouponForm({ coupon, onClose, onSaved }: { coupon: CouponRecord | 
   const { data: segments } = useApi<{ id: string; name: string }[]>('segments');
   const [company, setCompany] = useState<{ id: string; name: string } | null>(coupon?.companyId ? { id: coupon.companyId, name: coupon.companyName ?? 'Empresa' } : null);
   const [fundedBy, setFundedBy] = useState<'PLATFORM' | 'COMPANY'>(coupon?.fundedBy ?? 'PLATFORM');
+  const { data: loyalty } = useApi<{ tiers: { key: string; name: string }[] }>('admin/growth/loyalty');
 
   return (
     <CouponForm
       coupon={coupon}
       segments={segments ?? []}
+      tiers={loyalty?.tiers}
       onClose={onClose}
       extraFields={
         coupon ? (

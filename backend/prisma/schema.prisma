@@ -1825,6 +1825,9 @@ model Coupon {
   maxPerCustomer   Int           @default(1)
   redemptions      Int           @default(0)
   fundedBy         CouponFunding @default(PLATFORM)
+  /// CODE = só com o código; PUBLIC = listado no app; TIER = listado e exclusivo do nível mínimo de fidelidade
+  visibility       String        @default("CODE")
+  minTier          String?
   isActive         Boolean       @default(true)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
@@ -2600,6 +2603,8 @@ enum RiskSignalType {
   ABNORMAL_CANCELLATIONS
   /// Entregador que desiste de entregas com frequência anormal.
   DRIVER_RELEASES
+  /// Indicação suspeita (mesmo aparelho ou autoindicação).
+  REFERRAL_ABUSE
   /// Registrado manualmente pela equipe.
   MANUAL
 }
@@ -3103,4 +3108,133 @@ model ApiRequestLog {
   @@index([companyId, createdAt])
   @@index([apiKeyId, createdAt])
   @@map("api_request_logs")
+}
+
+// =============================================================================
+// FASE 10 — COMPLEMENTOS (favoritos, fidelidade, indicação e frota própria)
+// =============================================================================
+
+/// Loja favorita do cliente (atalho na Home).
+model FavoriteStore {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  customerId String   @db.Uuid
+  companyId  String   @db.Uuid
+  createdAt  DateTime @default(now())
+
+  @@unique([customerId, companyId])
+  @@index([customerId, createdAt])
+  @@map("favorite_stores")
+}
+
+enum LoyaltyTransactionType {
+  EARN
+  REDEEM
+  EXPIRE
+  ADJUST
+}
+
+/// Conta de fidelidade do cliente: saldo de pontos e nível (pontos ganhos nos últimos 12 meses).
+model LoyaltyAccount {
+  customerId     String    @id @db.Uuid
+  tenantId       String    @db.Uuid
+  points         Int       @default(0)
+  lifetimePoints Int       @default(0)
+  tier           String    @default("bronze")
+  lastEarnedAt   DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  @@index([tenantId, tier])
+  @@map("loyalty_accounts")
+}
+
+/// Movimento de pontos (extrato), idempotente pela chave de referência.
+model LoyaltyTransaction {
+  id           String                 @id @default(uuid(7)) @db.Uuid
+  tenantId     String                 @db.Uuid
+  customerId   String                 @db.Uuid
+  type         LoyaltyTransactionType
+  /// Com sinal: positivo = ganho, negativo = resgate/expiração.
+  points       Int
+  description  String
+  orderId      String?                @db.Uuid
+  referenceKey String                 @unique
+  createdAt    DateTime               @default(now())
+
+  @@index([customerId, createdAt])
+  @@index([tenantId, type, createdAt])
+  @@map("loyalty_transactions")
+}
+
+enum ReferralProgram {
+  CUSTOMER
+  DRIVER
+  COMPANY
+}
+
+enum ReferralStatus {
+  PENDING
+  REWARDED
+  REJECTED
+  EXPIRED
+}
+
+/// Código de indicação de cada pessoa (criado sob demanda).
+model ReferralCode {
+  userId    String   @id @db.Uuid
+  tenantId  String   @db.Uuid
+  code      String
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, code])
+  @@map("referral_codes")
+}
+
+/// Indicação: quem indicou, quem foi indicado e a recompensa ao cumprir a meta do programa.
+model Referral {
+  id                  String          @id @default(uuid(7)) @db.Uuid
+  tenantId            String          @db.Uuid
+  program             ReferralProgram
+  referrerUserId      String          @db.Uuid
+  referredUserId      String          @db.Uuid
+  /// Empresa indicada (programa de empresas).
+  referredCompanyId   String?         @db.Uuid
+  status              ReferralStatus  @default(PENDING)
+  reason              String?
+  expiresAt           DateTime
+  rewardedAt          DateTime?
+  referrerRewardCents Int             @default(0)
+  referredRewardCents Int             @default(0)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@unique([program, referredUserId])
+  @@index([tenantId, referrerUserId, createdAt])
+  @@index([status, expiresAt])
+  @@map("referrals")
+}
+
+enum FleetInvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELED
+  EXPIRED
+}
+
+/// Convite de uma empresa para um entregador entrar na frota própria.
+model FleetInvitation {
+  id          String                @id @default(uuid(7)) @db.Uuid
+  tenantId    String                @db.Uuid
+  companyId   String                @db.Uuid
+  driverId    String                @db.Uuid
+  status      FleetInvitationStatus @default(PENDING)
+  message     String?
+  invitedById String                @db.Uuid
+  expiresAt   DateTime
+  respondedAt DateTime?
+  createdAt   DateTime              @default(now())
+
+  @@index([driverId, status])
+  @@index([companyId, status])
+  @@map("fleet_invitations")
 }

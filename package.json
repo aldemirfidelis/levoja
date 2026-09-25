@@ -19,7 +19,8 @@
     "test": "pnpm -r test",
     "postinstall": "pnpm --filter @levoja/shared build",
     "dev:client": "pnpm --filter @levoja/mobile-client start",
-    "dev:driver": "pnpm --filter @levoja/mobile-driver start"
+    "dev:driver": "pnpm --filter @levoja/mobile-driver start",
+    "android:usb": "node scripts/android-usb.mjs"
   },
   "pnpm": {
     "overrides": {

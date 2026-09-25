@@ -44,11 +44,17 @@ export class StoresService {
     return { point: query.lat != null && query.lng != null ? { lat: query.lat, lng: query.lng } : null };
   }
 
-  async list(tenantId: string, user: AuthUser | undefined, query: StoresQueryDto) {
+  /**
+   * `only`: uso interno (favoritos e promoções da Home) — restringe às lojas informadas e,
+   * com `includeUncovered`, mantém as que não atendem o endereço (marcadas com `covered: false`).
+   */
+  async list(tenantId: string, user: AuthUser | undefined, query: StoresQueryDto, only?: { companyIds: string[]; includeUncovered?: boolean }) {
     const location = await this.resolveLocation(user, query);
+    const includeUncovered = !!only?.includeUncovered;
     const where: Prisma.CompanyWhereInput = {
       tenantId,
       status: 'APPROVED',
+      ...(only ? { id: { in: only.companyIds } } : {}),
       segment: query.segment ? { slug: query.segment, isActive: true } : { isActive: true },
       ...(query.search
         ? {
@@ -58,16 +64,18 @@ export class StoresService {
             ],
           }
         : {}),
-      ...(location.point
-        ? {
+      ...(includeUncovered
+        ? {}
+        : location.point
+          ? {
             address: {
               lat: { gte: location.point.lat - BOUNDING_DEGREES, lte: location.point.lat + BOUNDING_DEGREES },
               lng: { gte: location.point.lng - BOUNDING_DEGREES, lte: location.point.lng + BOUNDING_DEGREES },
             },
           }
-        : location.city
-          ? { address: { city: { equals: location.city, mode: 'insensitive' } } }
-          : {}),
+          : location.city
+            ? { address: { city: { equals: location.city, mode: 'insensitive' } } }
+            : {}),
     };
 
     const companies = await this.prisma.company.findMany({
@@ -86,7 +94,7 @@ export class StoresService {
     for (const company of companies) {
       const hasLocation = !!(location.point || location.city);
       const coverage = hasLocation ? await this.areas.coverage(company, location, company.serviceAreas) : null;
-      if (coverage && !coverage.covered) continue;
+      if (coverage && !coverage.covered && !includeUncovered) continue;
       const distanceKm = coverage?.straightKm ?? null;
       const travelMin = distanceKm != null ? Math.round((distanceKm * 1.35 * 60) / LIST_SPEED_KMH) : null;
       const openNow = company.isOpen && isWithinOpeningHours(company.openingHours, now, company.timezone);
@@ -105,10 +113,12 @@ export class StoresService {
         distanceKm: distanceKm != null ? Math.round(distanceKm * 10) / 10 : null,
         estimatedMinutes: travelMin != null ? { min: company.averagePrepMinutes + travelMin, max: company.averagePrepMinutes + travelMin + 15 } : null,
         city: company.address?.city ?? null,
+        covered: coverage ? coverage.covered : true,
       });
     }
 
     rows.sort((a, b) => {
+      if (a.covered !== b.covered) return a.covered ? -1 : 1;
       if (a.isOpenNow !== b.isOpenNow) return a.isOpenNow ? -1 : 1;
       if (query.sort === 'rating') return b.ratingAvg - a.ratingAvg;
       return (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity);

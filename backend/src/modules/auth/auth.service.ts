@@ -10,7 +10,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { normalizeBrazilianPhone, ROLE_KEYS } from '@levoja/shared';
-import { PrismaService } from '../../infra/prisma/prisma.service';
+import { PrismaService, Tx } from '../../infra/prisma/prisma.service';
 import { CryptoService } from '../../infra/crypto/crypto.service';
 import { PasswordService } from '../../infra/crypto/password.service';
 import { generateTotpSecret, totpUri, verifyTotp } from '../../infra/crypto/totp';
@@ -42,6 +42,18 @@ import type { User } from '../../generated/prisma/client';
 
 type AppKind = LoginDto['app'];
 
+export interface SignupContext {
+  tenantId: string;
+  userId: string;
+  profile: 'CUSTOMER' | 'DRIVER' | 'COMPANY';
+  companyId?: string;
+  referralCode?: string;
+  client: ClientInfo;
+}
+
+/** Regra executada no cadastro, dentro da transação (ex.: vincular o código de indicação). Lança exceção para recusar. */
+export type SignupHook = (tx: Tx, context: SignupContext) => Promise<void>;
+
 export type LoginResult = (TokenPair & { mfaRequired?: false; user: ReturnType<UsersService['toView']> }) | { mfaRequired: true; mfaToken: string };
 
 const STATUS_MESSAGES: Record<string, string> = {
@@ -54,6 +66,8 @@ const INVALID_CREDENTIALS = 'E-mail/telefone ou senha incorretos.';
 
 @Injectable()
 export class AuthService {
+  private readonly signupHooks: SignupHook[] = [];
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly crypto: CryptoService,
@@ -79,12 +93,21 @@ export class AuthService {
   // Cadastro
   // ---------------------------------------------------------------------------
 
+  registerSignupHook(hook: SignupHook): void {
+    this.signupHooks.push(hook);
+  }
+
+  private async runSignupHooks(tx: Tx, context: SignupContext) {
+    for (const hook of this.signupHooks) await hook(tx, context);
+  }
+
   async registerCustomer(tenantId: string, dto: RegisterCustomerDto, client: ClientInfo): Promise<LoginResult> {
     const role = await this.roles.findByKey(tenantId, ROLE_KEYS.CUSTOMER);
     const user = await this.prisma.$transaction(async (tx) => {
       const created = await this.users.create(tx, tenantId, { ...dto, roleIds: [role.id] });
       await tx.customer.create({ data: { tenantId, userId: created.id } });
       await this.legal.recordConsents(tx, tenantId, created.id, this.baseConsents(dto.marketingOptIn), client);
+      await this.runSignupHooks(tx, { tenantId, userId: created.id, profile: 'CUSTOMER', referralCode: dto.referralCode, client });
       await this.audit.log(
         { action: 'auth.register', entityType: 'User', entityId: created.id, actorId: created.id, tenantId, metadata: { profile: 'customer' } },
         tx,
@@ -110,6 +133,7 @@ export class AuthService {
         ],
         client,
       );
+      await this.runSignupHooks(tx, { tenantId, userId: created.id, profile: 'DRIVER', referralCode: dto.referralCode, client });
       await this.audit.log(
         { action: 'auth.register', entityType: 'User', entityId: created.id, actorId: created.id, tenantId, metadata: { profile: 'driver' } },
         tx,
@@ -133,6 +157,7 @@ export class AuthService {
         [...this.baseConsents(dto.marketingOptIn), { type: 'COMPANY_TERMS', granted: true }],
         client,
       );
+      await this.runSignupHooks(tx, { tenantId, userId: created.id, profile: 'COMPANY', companyId: company.id, referralCode: dto.referralCode, client });
       await this.audit.log(
         {
           action: 'auth.register',

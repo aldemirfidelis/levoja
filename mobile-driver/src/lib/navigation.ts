@@ -8,4 +8,6 @@ export function openFromNotification(data: Record<string, unknown>, type?: strin
   else if (kind === 'delivery.offer') router.navigate('/');
   else if (typeof data.deliveryId === 'string') router.push(`/entrega/${data.deliveryId}`);
   else if (typeof data.withdrawalId === 'string') router.navigate('/ganhos');
+  else if (typeof data.invitationId === 'string' || kind?.startsWith('fleet.')) router.push('/conta/frota');
+  else if (typeof data.referralId === 'string') router.push('/conta/indique');
 }

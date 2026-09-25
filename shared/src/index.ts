@@ -9,5 +9,6 @@ export * from './support';
 export * from './b2b';
 export * from './intelligence';
 export * from './saas';
+export * from './growth';
 
 export const PLATFORM_NAME = 'LevoJá';

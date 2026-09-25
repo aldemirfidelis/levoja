@@ -41,6 +41,6 @@ import { CouponsService } from './coupons/coupons.service';
     CompanyOrdersController,
     AdminOrdersController,
   ],
-  exports: [MapsService, SettingsService, PricingService, CatalogService, ServiceAreasService, CouponsService, OrdersService],
+  exports: [MapsService, SettingsService, PricingService, CatalogService, ServiceAreasService, StoresService, CartService, CouponsService, OrdersService],
 })
 export class MarketplaceModule {}

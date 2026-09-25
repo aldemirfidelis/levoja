@@ -2,7 +2,6 @@ import '@/lib/env';
 import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
-import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -10,6 +9,7 @@ import {
   ErrorView,
   themeColors,
   OfflineBanner,
+  type PushChannel,
   QueryProvider,
   RealtimeProvider,
   registerPushToken,
@@ -27,7 +27,7 @@ import { openFromNotification } from '@/lib/navigation';
 void SplashScreen.preventAutoHideAsync();
 
 /** Canais do Android: promoções ficam num canal próprio (o cliente pode silenciá-lo no sistema). */
-const PUSH_CHANNELS = [{ id: 'promotions', name: 'Promoções', importance: Notifications.AndroidImportance.DEFAULT }];
+const PUSH_CHANNELS: PushChannel[] = [{ id: 'promotions', name: 'Promoções', importance: 'DEFAULT' }];
 
 export default function RootLayout() {
   return (
@@ -46,7 +46,8 @@ function LiveUpdates() {
   const invalidate = useInvalidate();
   useRealtimeEvent('order.updated', () => void invalidate('orders'));
   useRealtimeEvent('delivery.updated', () => void invalidate('deliveries', 'orders'));
-  useRealtimeEvent('notification', () => void invalidate('me/notifications'));
+  // Notificações também avisam de pontos, cashback e indicações pagas.
+  useRealtimeEvent('notification', () => void invalidate('me/notifications', 'me/loyalty', 'me/home', 'referrals/me', 'customers/me/wallet'));
   useNotificationTaps(openFromNotification);
   return null;
 }
@@ -96,6 +97,10 @@ function Root() {
               <Stack.Screen name="conta/notificacoes" options={{ title: 'Notificações' }} />
               <Stack.Screen name="conta/privacidade" options={{ title: 'Privacidade' }} />
               <Stack.Screen name="conta/creditos" options={{ title: 'Créditos' }} />
+              <Stack.Screen name="conta/fidelidade" options={{ title: 'Fidelidade' }} />
+              <Stack.Screen name="conta/indique" options={{ title: 'Indique e ganhe' }} />
+              <Stack.Screen name="conta/cupons" options={{ title: 'Meus cupons' }} />
+              <Stack.Screen name="conta/favoritas" options={{ title: 'Lojas favoritas' }} />
               <Stack.Screen name="conversa/[id]" options={{ title: 'Conversa' }} />
               <Stack.Screen name="ajuda/index" options={{ title: 'Meus chamados' }} />
               <Stack.Screen name="ajuda/novo" options={{ title: 'Novo chamado', presentation: 'modal' }} />

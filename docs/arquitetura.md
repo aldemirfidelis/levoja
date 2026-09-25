@@ -199,6 +199,25 @@ críticas. Nenhuma conta é bloqueada, nenhum preço muda e nenhuma resposta é 
   (`webhook_deliveries`), enviadas por job com assinatura `t=,v1=` (HMAC-SHA256), sem seguir redirecionamentos,
   com checagem de IP público a cada envio, novas tentativas (1 min → 12 h) e desativação após 20 falhas.
 
+## Complementos (Fase 10)
+
+- **Módulo `growth`:** `CustomerHomeService` (favoritas, cupons listáveis, pedidos recentes, "pedir de novo" e
+  o agregado `GET /v1/me/home`), `LoyaltyService`, `ReferralsService` e `FleetService`.
+- **Fidelidade:** ouve `order.status.changed` (entregue) e lança pontos (`loyalty_transactions`, idempotente por
+  `referenceKey`) e cashback no razão (`CREDIT` do cliente e `DISCOUNT` da plataforma). O nível é recalculado a
+  cada ganho e revisto diariamente com a expiração. Cupom `TIER` usa o gancho `CouponsService.registerEligibility`.
+- **Indicação:** gancho novo `AuthService.registerSignupHook` vincula o código dentro da transação do cadastro
+  (código inválido recusa o cadastro; programa desligado ignora o código). Metas por eventos de pedido e de
+  entrega; antes de pagar, confere aparelhos em comum (`device_sightings`) — em caso positivo, retém e emite
+  `REFERRAL_ABUSE`. O pagamento é uma transição única para `REWARDED` com lançamentos idempotentes.
+- **Concorrência:** ouvintes do mesmo evento lançam nas mesmas carteiras (liquidação, indicação, cashback);
+  `retryOnConflict` repete a transação em deadlock/conflito de serialização.
+- **Configurações:** `SettingsService` mescla o valor salvo sobre o padrão (dois níveis), então campos novos
+  não invalidam configurações antigas.
+- **PWA:** `app/manifest.ts` (marca do tenant), ícones por `ImageResponse` (`/pwa-icon/192|512`), `public/sw.js`
+  (rede primeiro nas páginas com fallback offline, cache dos estáticos versionados, nunca `/api/*`) e
+  notificações do navegador a partir do evento `notification` do tempo real.
+
 ## Multi-tenant
 
 - Toda entidade de negócio possui `tenantId` (isolamento lógico em um único banco).

@@ -9,6 +9,7 @@ export default function AccountTab() {
   const { me, logout } = useAuth();
   const driver = useDriver();
   const notifications = useApi<{ unread: number }>('me/notifications', { pageSize: 1 });
+  const fleet = useApi<{ company: { tradeName: string } | null; invitations: { id: string }[] }>('drivers/me/fleet');
   if (!me) return null;
   return (
     <Screen>
@@ -25,6 +26,14 @@ export default function AccountTab() {
         <ListItem icon="scooter" title="Veículo" onPress={() => router.push('/cadastro/veiculo')} />
         <ListItem icon="document" title="Documentos" onPress={() => router.push('/cadastro/documentos')} />
         <ListItem icon="pix" title="Chave PIX para receber" onPress={() => router.push('/conta/dados-bancarios')} />
+        <ListItem
+          icon="team"
+          title="Frota própria"
+          subtitle={fleet.data?.company ? fleet.data.company.tradeName : fleet.data?.invitations.length ? `${fleet.data.invitations.length} convite(s) aguardando` : 'Convites de empresas'}
+          right={fleet.data?.invitations.length ? <Badge label={String(fleet.data.invitations.length)} tone="brand" /> : undefined}
+          onPress={() => router.push('/conta/frota')}
+        />
+        <ListItem icon="gift" title="Indique e ganhe" subtitle="Convide outros entregadores" onPress={() => router.push('/conta/indique')} />
       </ListGroup>
       <ListGroup title="Conta">
         <ListItem icon="account" title="Meus dados" onPress={() => router.push('/conta/perfil')} />

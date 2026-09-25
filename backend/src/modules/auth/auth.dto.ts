@@ -34,6 +34,11 @@ class BaseRegisterDto {
   acceptPrivacy!: boolean;
 
   @ApiPropertyOptional({ description: 'Opt-in para comunicações de marketing' }) @IsOptional() @IsBoolean() marketingOptIn?: boolean;
+  @ApiPropertyOptional({ description: 'Código de indicação de quem convidou (programa Indique e ganhe)', example: 'MARIA7K2' })
+  @IsOptional()
+  @IsString()
+  @Length(3, 20)
+  referralCode?: string;
 }
 
 export class RegisterCustomerDto extends BaseRegisterDto {

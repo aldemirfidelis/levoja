@@ -1,8 +1,15 @@
+import { isRunningInExpoGo } from 'expo';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { enqueuePoints, outbox, type LocationPoint } from './outbox';
 
 export const LOCATION_TASK = 'levoja-driver-location';
+
+/**
+ * GPS em segundo plano só no build de desenvolvimento/produção. No Expo Go a tarefa chega a ser
+ * registrada, mas o Android a dispara sem o app carregado e o Expo Go fecha sozinho (a cada leitura).
+ */
+export const backgroundTrackingSupported = !isRunningInExpoGo();
 
 let lastPoint: LocationPoint | null = null;
 let foregroundWatch: Location.LocationSubscription | null = null;
@@ -61,7 +68,7 @@ export type PermissionResult = { ok: true; background: boolean } | { ok: false; 
 export async function requestLocationPermissions(askBackground: boolean): Promise<PermissionResult> {
   const foreground = await Location.requestForegroundPermissionsAsync();
   if (!foreground.granted) return { ok: false, reason: 'Sem acesso à localização não é possível receber entregas. Libere nas configurações do aparelho.' };
-  if (!askBackground) return { ok: true, background: (await Location.getBackgroundPermissionsAsync()).granted };
+  if (!askBackground || !backgroundTrackingSupported) return { ok: true, background: backgroundTrackingSupported && (await Location.getBackgroundPermissionsAsync()).granted };
   const background = await Location.requestBackgroundPermissionsAsync().catch(() => ({ granted: false }));
   return { ok: true, background: background.granted };
 }
@@ -81,7 +88,7 @@ export async function currentPosition(): Promise<{ lat: number; lng: number } | 
  * permitido; caso contrário, somente com o app aberto.
  */
 export async function startTracking(): Promise<TrackingMode> {
-  const background = (await Location.getBackgroundPermissionsAsync()).granted;
+  const background = backgroundTrackingSupported && (await Location.getBackgroundPermissionsAsync()).granted;
   if (background) {
     try {
       if (!(await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK))) {
@@ -106,7 +113,7 @@ export async function startTracking(): Promise<TrackingMode> {
       setMode('background');
       return 'background';
     } catch {
-      // Ex.: Expo Go (sem serviço em segundo plano) — segue com o app aberto.
+      // Serviço em segundo plano indisponível no aparelho — segue com o app aberto.
     }
   }
   if (!foregroundWatch) {
@@ -126,4 +133,12 @@ export async function stopTracking(): Promise<void> {
     await Location.stopLocationUpdatesAsync(LOCATION_TASK).catch(() => undefined);
   }
   setMode('off');
+}
+
+// Expo Go: desfaz um registro em segundo plano deixado por versões anteriores do app.
+if (!backgroundTrackingSupported) {
+  void Promise.resolve()
+    .then(() => Location.hasStartedLocationUpdatesAsync(LOCATION_TASK))
+    .then((started) => (started ? Location.stopLocationUpdatesAsync(LOCATION_TASK) : undefined))
+    .catch(() => undefined);
 }

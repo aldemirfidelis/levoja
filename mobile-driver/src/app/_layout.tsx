@@ -3,12 +3,12 @@ import { useColorScheme } from 'react-native';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import * as Notifications from 'expo-notifications';
 import {
   AuthProvider,
   ErrorView,
   themeColors,
   OfflineBanner,
+  type PushChannel,
   QueryProvider,
   RealtimeProvider,
   registerPushToken,
@@ -27,7 +27,7 @@ import { openFromNotification } from '@/lib/navigation';
 
 void SplashScreen.preventAutoHideAsync();
 
-const OFFER_CHANNEL = [{ id: 'offers', name: 'Ofertas de entrega', importance: Notifications.AndroidImportance.MAX, vibrationPattern: [0, 500, 250, 500, 250, 500] }];
+const OFFER_CHANNEL: PushChannel[] = [{ id: 'offers', name: 'Ofertas de entrega', importance: 'MAX', vibrationPattern: [0, 500, 250, 500, 250, 500] }];
 
 export default function RootLayout() {
   return (
@@ -102,6 +102,8 @@ function Root() {
         <Stack.Screen name="cadastro/veiculo" options={{ title: 'Veículo' }} />
         <Stack.Screen name="cadastro/dados" options={{ title: 'Dados pessoais' }} />
         <Stack.Screen name="conta/dados-bancarios" options={{ title: 'Chave PIX' }} />
+        <Stack.Screen name="conta/frota" options={{ title: 'Frota própria' }} />
+        <Stack.Screen name="conta/indique" options={{ title: 'Indique e ganhe' }} />
         <Stack.Screen name="ajuda/index" options={{ title: 'Meus chamados' }} />
         <Stack.Screen name="ajuda/novo" options={{ title: 'Novo chamado', presentation: 'modal' }} />
         <Stack.Screen name="ajuda/[id]" options={{ title: 'Chamado' }} />

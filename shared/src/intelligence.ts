@@ -12,6 +12,7 @@ export const RISK_SIGNAL_LABELS = {
   PROOF_FAR_FROM_DROPOFF: 'Conclusão longe do destino',
   ABNORMAL_CANCELLATIONS: 'Cancelamentos acima do normal',
   DRIVER_RELEASES: 'Desistências de entregas acima do normal',
+  REFERRAL_ABUSE: 'Indicação suspeita (mesmo aparelho)',
   MANUAL: 'Registro manual da equipe',
 } as const;
 export type RiskSignalType = keyof typeof RISK_SIGNAL_LABELS;

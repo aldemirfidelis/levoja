@@ -178,3 +178,17 @@ test('Escala: paleta da marca, domínios e planos padrão', async () => {
   }
   assert.ok(Object.values(API_KEY_SCOPES).every((scope) => PLAN_FEATURES.includes(scope.feature)));
 });
+
+test('Crescimento: níveis, pontos e códigos de indicação', async () => {
+  const { tierFor, nextTier, earnedPoints, tierRank, normalizeReferralCode, DEFAULT_LOYALTY_TIERS } = await import('./index');
+  assert.equal(tierFor(0, DEFAULT_LOYALTY_TIERS).key, 'bronze');
+  assert.equal(tierFor(2000, DEFAULT_LOYALTY_TIERS).key, 'prata');
+  assert.equal(tierFor(99_999, DEFAULT_LOYALTY_TIERS).key, 'ouro');
+  assert.deepEqual(nextTier(1500, DEFAULT_LOYALTY_TIERS), { tier: DEFAULT_LOYALTY_TIERS[1], missing: 500 });
+  assert.equal(nextTier(7000, DEFAULT_LOYALTY_TIERS), null);
+  assert.equal(earnedPoints(4990, 1, 10_000), 49);
+  assert.equal(earnedPoints(4990, 1, 15_000), 74);
+  assert.equal(earnedPoints(0, 1, 10_000), 0);
+  assert.ok(tierRank('ouro', DEFAULT_LOYALTY_TIERS) > tierRank('prata', DEFAULT_LOYALTY_TIERS));
+  assert.equal(normalizeReferralCode(' ab-12 cd '), 'AB12CD');
+});

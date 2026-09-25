@@ -3,6 +3,8 @@ import { isWithinOpeningHours, localWeekMinute, validateOpeningHours } from './o
 import { assertRequirements, resolveAdminTransition, resolveOwnerSubmit, slugify } from './partner-workflow';
 import { toAuthUser, AccessProfile } from './auth/auth-user';
 import { diff, redact } from '../modules/audit/audit.service';
+import { SETTINGS, withDefaults } from '../modules/settings/settings.service';
+import { isTransientConflict, retryOnConflict } from './retry';
 
 const actor = (permissions: string[]) =>
   toAuthUser(
@@ -115,5 +117,44 @@ describe('Auditoria', () => {
 
   it('registra apenas campos alterados', () => {
     expect(diff({ a: 1, b: 2, d: new Date(0) }, { a: 1, b: 3, d: new Date(0) })).toEqual({ before: { b: 2 }, after: { b: 3 } });
+  });
+});
+
+describe('Configurações salvas antes de campos novos', () => {
+  it('mescla o valor salvo sobre o padrão (dois níveis) e mantém listas salvas', () => {
+    const stored = { enabled: true, points: { SHARED_DEVICE: 40 }, tiers: [{ key: 'unico' }] };
+    const merged = withDefaults({ enabled: false, halfLifeDays: 30, points: { SHARED_DEVICE: 30, REFERRAL_ABUSE: 25 }, tiers: [{ key: 'a' }, { key: 'b' }] }, stored);
+    expect(merged).toEqual({ enabled: true, halfLifeDays: 30, points: { SHARED_DEVICE: 40, REFERRAL_ABUSE: 25 }, tiers: [{ key: 'unico' }] });
+    expect(withDefaults({ a: 1 }, null)).toEqual({ a: 1 });
+  });
+
+  it('configuração antiga do antifraude continua válida com o sinal novo de indicação', () => {
+    const { REFERRAL_ABUSE: _new, ...oldPoints } = SETTINGS.fraud.default.points as Record<string, number>;
+    const parsed = SETTINGS.fraud.schema.safeParse(withDefaults(SETTINGS.fraud.default, { ...SETTINGS.fraud.default, points: oldPoints }));
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.points.REFERRAL_ABUSE).toBe(25);
+  });
+
+  it('regras padrão de fidelidade e indicação são válidas', () => {
+    expect(SETTINGS.loyalty.schema.safeParse(SETTINGS.loyalty.default).success).toBe(true);
+    expect(SETTINGS.referral.schema.safeParse(SETTINGS.referral.default).success).toBe(true);
+    expect(SETTINGS.loyalty.schema.safeParse({ ...SETTINGS.loyalty.default, tiers: [{ key: 'ouro', name: 'Ouro', minPoints: 10, multiplierBps: 10_000, cashbackBps: 0 }] }).success).toBe(false);
+  });
+});
+
+describe('Conflitos de concorrência', () => {
+  it('reconhece deadlock e erro de serialização', () => {
+    expect(isTransientConflict(new Error('deadlock detected'))).toBe(true);
+    expect(isTransientConflict(Object.assign(new Error('falhou'), { meta: { code: '40001' } }))).toBe(true);
+    expect(isTransientConflict(new Error('Saldo insuficiente'))).toBe(false);
+  });
+
+  it('repete só o que é transitório', async () => {
+    let calls = 0;
+    await expect(retryOnConflict(async () => (++calls < 3 ? Promise.reject(new Error('deadlock detected')) : 'ok'))).resolves.toBe('ok');
+    expect(calls).toBe(3);
+    calls = 0;
+    await expect(retryOnConflict(async () => { calls++; throw new Error('Saldo insuficiente'); })).rejects.toThrow('Saldo insuficiente');
+    expect(calls).toBe(1);
   });
 });

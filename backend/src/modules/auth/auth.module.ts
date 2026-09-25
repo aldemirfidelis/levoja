@@ -9,6 +9,6 @@ import { DriversModule } from '../drivers/drivers.module';
   imports: [CompaniesModule, DriversModule],
   providers: [AuthService, TokenService],
   controllers: [AuthController],
-  exports: [TokenService],
+  exports: [TokenService, AuthService],
 })
 export class AuthModule {}

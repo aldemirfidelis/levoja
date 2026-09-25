@@ -14,11 +14,13 @@ import {
   VEHICLE_TYPES,
   type VehicleType,
 } from '@levoja/shared';
-import { Button, Checkbox, Chip, errorMessage, Field, kitConfig, Row, Screen, Section, Stack, Text, useAuth } from '@levoja/mobile-kit';
+import { useLocalSearchParams } from 'expo-router';
+import { Button, Checkbox, Chip, errorMessage, Field, kitConfig, ReferralCodeField, Row, Screen, Section, Stack, Text, useAuth } from '@levoja/mobile-kit';
 
 export default function DriverSignUp() {
   const { register } = useAuth();
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', cpf: '', birthDate: '', vehicleType: 'MOTORCYCLE' as VehicleType, terms: false, location: false });
+  const params = useLocalSearchParams<{ codigo?: string }>();
+  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', cpf: '', birthDate: '', vehicleType: 'MOTORCYCLE' as VehicleType, referralCode: params.codigo ?? '', terms: false, location: false });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -54,6 +56,7 @@ export default function DriverSignUp() {
         acceptPrivacy: true,
         acceptDriverTerms: true,
         acceptLocationTracking: true,
+        referralCode: form.referralCode.trim() || undefined,
       });
     } catch (err) {
       setError(errorMessage(err));
@@ -73,6 +76,7 @@ export default function DriverSignUp() {
         <Field label="Nascimento" value={form.birthDate} placeholder="DD/MM/AAAA" onChangeText={(birthDate) => setForm({ ...form, birthDate: maskDate(birthDate) })} keyboardType="number-pad" containerStyle={{ flex: 1 }} error={errors.birthDate} />
       </Row>
       <Field label="Senha" value={form.password} onChangeText={(password) => setForm({ ...form, password })} secure autoComplete="new-password" error={errors.password} hint="Mínimo de 8 caracteres, com letras e números." />
+      <ReferralCodeField program="DRIVER" value={form.referralCode} onChange={(referralCode) => setForm({ ...form, referralCode })} />
       <Section title="Seu veículo">
         <Row gap={2} style={{ flexWrap: 'wrap' }}>
           {VEHICLE_TYPES.map((type) => (

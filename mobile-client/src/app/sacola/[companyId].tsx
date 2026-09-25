@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useQuery } from '@tanstack/react-query';
-import { PAYMENT_METHOD_LABELS, type PaymentMethod } from '@levoja/shared';
+import { describeCoupon, PAYMENT_METHOD_LABELS, type PaymentMethod } from '@levoja/shared';
 import {
   api,
   Badge,
@@ -43,7 +43,7 @@ import {
 import { CardForm, type CardToken } from '@/components/card-form';
 import { addressLine, useAddress } from '@/lib/address';
 import { scheduleSlots } from '@/lib/schedule';
-import type { Cart, Order, PaymentMethodsInfo, Quote, StoreDetail } from '@/lib/types';
+import type { AvailableCoupon, Cart, Order, PaymentMethodsInfo, Quote, StoreDetail } from '@/lib/types';
 
 const TIPS = [0, 200, 500, 1000];
 const METHOD_ICON: Record<string, IconName> = { PIX: 'pix', CREDIT_CARD: 'card', DEBIT_CARD: 'card', WALLET: 'wallet', CASH: 'money' };
@@ -58,6 +58,8 @@ export default function BagScreen() {
   const store = useApi<StoreDetail>(`stores/${companyId}`);
   const methods = useApi<PaymentMethodsInfo>('payments/methods', undefined, { staleTime: 5 * 60_000 });
   const credits = useApi<{ availableCents: number }>('customers/me/wallet');
+  const myCoupons = useApi<AvailableCoupon[]>('me/coupons', undefined, { staleTime: 60_000 });
+  const usableCoupons = (myCoupons.data ?? []).filter((coupon) => !coupon.locked && (!coupon.store || coupon.store.id === companyId));
 
   const [fulfillment, setFulfillment] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY');
   const [scheduledFor, setScheduledFor] = useState<string | null>(null);
@@ -277,6 +279,18 @@ export default function BagScreen() {
             <Button title="Aplicar" variant="secondary" disabled={couponInput.trim().length < 3} onPress={() => setCouponCode(couponInput.trim())} />
           </Row>
         )}
+        {!couponCode && usableCoupons.length ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space(2) }}>
+            {usableCoupons.map((coupon) => (
+              <Chip key={coupon.id} icon="coupon" label={`${coupon.code} · ${describeCoupon(coupon, formatBRL)}`} onPress={() => setCouponCode(coupon.code)} />
+            ))}
+          </ScrollView>
+        ) : null}
+        {!couponCode && usableCoupons.length ? (
+          <Text variant="caption" tone="muted">
+            Toque em um cupom disponível para aplicar. As regras de cada cupom são conferidas no total do pedido.
+          </Text>
+        ) : null}
       </Section>
 
       <Section title="Pagamento">

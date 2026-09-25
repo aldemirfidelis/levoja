@@ -6,4 +6,6 @@ export function openFromNotification(data: Record<string, unknown>) {
   else if (typeof data.ticketId === 'string') router.push(`/ajuda/${data.ticketId}`);
   else if (typeof data.orderId === 'string') router.push(`/pedido/${data.orderId}`);
   else if (typeof data.deliveryId === 'string') router.push(`/entrega/${data.deliveryId}`);
+  else if (typeof data.referralId === 'string') router.push('/conta/indique');
+  else if (typeof data.points === 'number' || typeof data.cashbackCents === 'number') router.push('/conta/fidelidade');
 }

@@ -40,6 +40,8 @@ export interface StoreCard {
   distanceKm: number | null;
   estimatedMinutes: { min: number; max: number } | null;
   city: string | null;
+  /** false = favorita que não atende o endereço selecionado. */
+  covered?: boolean;
 }
 
 export interface ProductOption {
@@ -249,3 +251,78 @@ export interface PaymentMethodsInfo {
   cardTokenization: { provider: 'sandbox' } | { provider: 'mercadopago'; publicKey: string } | null;
   sandbox: { cardTokens: Record<string, string> } | null;
 }
+
+// --- Fase 10: Home, cupons, fidelidade e indicação ---
+
+export interface AvailableCoupon {
+  id: string;
+  code: string;
+  description: string | null;
+  type: 'PERCENT' | 'FIXED' | 'FREE_DELIVERY';
+  percentBps: number | null;
+  amountCents: number | null;
+  maxDiscountCents: number | null;
+  minOrderCents: number;
+  firstOrderOnly: boolean;
+  endsAt: string | null;
+  visibility: 'PUBLIC' | 'TIER';
+  minTierName: string | null;
+  usesLeft: number;
+  /** Motivo do bloqueio (ex.: nível de fidelidade abaixo do exigido). */
+  locked: string | null;
+  store: { id: string; slug: string; tradeName: string; logoUrl: string | null } | null;
+  segment: { id: string; name: string; slug: string } | null;
+}
+
+export interface RecentOrder {
+  id: string;
+  number: number;
+  status: OrderStatus;
+  totalCents: number;
+  createdAt: string;
+  store: { id: string; slug: string; tradeName: string; logoUrl: string | null };
+  summary: string;
+}
+
+export interface HomeData {
+  favorites: StoreCard[];
+  promotions: { store: StoreCard; coupons: AvailableCoupon[] }[];
+  coupons: AvailableCoupon[];
+  recentOrders: RecentOrder[];
+  loyalty: { points: number; tier: { key: string; name: string }; redeemableCents: number } | null;
+  referral: { referrerRewardCents: number; referredRewardCents: number } | null;
+}
+
+export interface LoyaltyTier {
+  key: string;
+  name: string;
+  minPoints: number;
+  multiplierBps: number;
+  cashbackBps: number;
+}
+
+export interface LoyaltyTransaction {
+  id: string;
+  type: 'EARN' | 'REDEEM' | 'EXPIRE' | 'ADJUST';
+  points: number;
+  description: string;
+  createdAt: string;
+}
+
+export type LoyaltySummary =
+  | { enabled: false }
+  | {
+      enabled: true;
+      points: number;
+      lifetimePoints: number;
+      yearPoints: number;
+      redeemableCents: number;
+      pointValueCents: number;
+      pointsPerReal: number;
+      minRedeemPoints: number;
+      tier: LoyaltyTier;
+      next: { tier: LoyaltyTier; missing: number } | null;
+      tiers: LoyaltyTier[];
+      expiresAt: string | null;
+      recent: LoyaltyTransaction[];
+    };

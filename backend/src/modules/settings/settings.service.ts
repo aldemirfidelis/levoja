@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
-import { RISK_SIGNAL_TYPES, type RiskSignalType } from '@levoja/shared';
+import { DEFAULT_LOYALTY_TIERS, RISK_SIGNAL_TYPES, type RiskSignalType } from '@levoja/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { CacheService } from '../../infra/cache/cache.service';
 import { AuditService } from '../audit/audit.service';
@@ -165,7 +165,8 @@ export const SETTINGS = {
         highScore: z.number().int().min(1).max(100),
         /** Score que abre um caso para revisão humana. */
         caseScore: z.number().int().min(1).max(100),
-        points: z.record(z.enum(RISK_SIGNAL_TYPES as [RiskSignalType, ...RiskSignalType[]]), z.number().int().min(0).max(100)),
+        /** Parcial: tipos novos sem valor salvo usam o padrão (configurações antigas continuam válidas). */
+        points: z.partialRecord(z.enum(RISK_SIGNAL_TYPES as [RiskSignalType, ...RiskSignalType[]]), z.number().int().min(0).max(100)),
         maxAccountsPerDevice: z.number().int().min(1).max(20),
         newAccountDays: z.number().int().min(0).max(90),
         newAccountHighValueCents: z.number().int().min(0),
@@ -200,8 +201,9 @@ export const SETTINGS = {
         PROOF_FAR_FROM_DROPOFF: 15,
         ABNORMAL_CANCELLATIONS: 20,
         DRIVER_RELEASES: 15,
+        REFERRAL_ABUSE: 25,
         MANUAL: 50,
-      } as Record<RiskSignalType, number>,
+      } as Partial<Record<RiskSignalType, number>>,
       maxAccountsPerDevice: 2,
       newAccountDays: 3,
       newAccountHighValueCents: 30_000,
@@ -275,6 +277,60 @@ export const SETTINGS = {
     }),
     default: { restrictToRegistered: false },
   },
+  loyalty: {
+    description: 'Fidelidade: pontos por real gasto, valor do ponto no resgate, níveis (multiplicador e cashback) e expiração por inatividade',
+    schema: z.object({
+      enabled: z.boolean(),
+      pointsPerReal: z.number().min(0).max(100),
+      /** Valor de 1 ponto no resgate (centavos). */
+      pointValueCents: z.number().min(0.01).max(100),
+      minRedeemPoints: z.number().int().min(1).max(1_000_000),
+      /** Saldo expira após este tempo sem ganhar pontos (0 = não expira). */
+      expireAfterInactiveDays: z.number().int().min(0).max(3650),
+      tiers: z
+        .array(
+          z.object({
+            key: z.string().regex(/^[a-z0-9-]{2,20}$/),
+            name: z.string().min(2).max(30),
+            minPoints: z.number().int().min(0),
+            multiplierBps: z.number().int().min(0).max(100_000),
+            cashbackBps: z.number().int().min(0).max(5_000),
+          }),
+        )
+        .min(1)
+        .max(8)
+        .refine((tiers) => tiers.some((tier) => tier.minPoints === 0), 'O primeiro nível precisa começar em 0 ponto.')
+        .refine((tiers) => new Set(tiers.map((tier) => tier.key)).size === tiers.length, 'Chaves de nível repetidas.'),
+    }),
+    default: {
+      enabled: false,
+      pointsPerReal: 1,
+      pointValueCents: 1,
+      minRedeemPoints: 500,
+      expireAfterInactiveDays: 365,
+      tiers: DEFAULT_LOYALTY_TIERS,
+    },
+  },
+  referral: {
+    description: 'Indique e ganhe: recompensas para quem indica e para quem é indicado (clientes, entregadores e empresas), metas e prazo',
+    schema: z.object({
+      enabled: z.boolean(),
+      /** Prazo para o indicado cumprir a meta. */
+      windowDays: z.number().int().min(1).max(365),
+      maxPerReferrerPerMonth: z.number().int().min(1).max(1000),
+      customer: z.object({ enabled: z.boolean(), referrerRewardCents: z.number().int().min(0), referredRewardCents: z.number().int().min(0), minOrderCents: z.number().int().min(0) }),
+      driver: z.object({ enabled: z.boolean(), referrerRewardCents: z.number().int().min(0), referredRewardCents: z.number().int().min(0), deliveriesRequired: z.number().int().min(1).max(1000) }),
+      company: z.object({ enabled: z.boolean(), referrerRewardCents: z.number().int().min(0), referredRewardCents: z.number().int().min(0), ordersRequired: z.number().int().min(1).max(10_000) }),
+    }),
+    default: {
+      enabled: false,
+      windowDays: 60,
+      maxPerReferrerPerMonth: 20,
+      customer: { enabled: true, referrerRewardCents: 1000, referredRewardCents: 1000, minOrderCents: 3000 },
+      driver: { enabled: true, referrerRewardCents: 5000, referredRewardCents: 2000, deliveriesRequired: 10 },
+      company: { enabled: true, referrerRewardCents: 10_000, referredRewardCents: 5000, ordersRequired: 10 },
+    },
+  },
   'ops.rainCities': {
     description: 'Cidades com adicional de chuva ativo ("cidade/uf" em minúsculas)',
     schema: z.array(z.string().min(3)).max(500),
@@ -287,6 +343,22 @@ export type SettingValue<K extends SettingKey> = z.infer<(typeof SETTINGS)[K]['s
 
 const TTL = 60;
 
+const isPlainObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * Valor salvo sobre o padrão (dois níveis): campos criados depois que a configuração foi salva
+ * assumem o valor padrão em vez de invalidar a configuração inteira. Listas são substituídas.
+ */
+export function withDefaults(defaults: unknown, stored: unknown): unknown {
+  if (stored === undefined || stored === null) return defaults;
+  if (!isPlainObject(defaults) || !isPlainObject(stored)) return stored;
+  const merged: Record<string, unknown> = { ...defaults };
+  for (const [key, value] of Object.entries(stored)) {
+    merged[key] = isPlainObject(defaults[key]) && isPlainObject(value) ? { ...(defaults[key] as Record<string, unknown>), ...value } : value;
+  }
+  return merged;
+}
+
 @Injectable()
 export class SettingsService {
   constructor(
@@ -298,7 +370,7 @@ export class SettingsService {
   async get<K extends SettingKey>(tenantId: string, key: K): Promise<SettingValue<K>> {
     return this.cache.wrap(`setting:${tenantId}:${key}`, TTL, async () => {
       const row = await this.prisma.platformSetting.findUnique({ where: { tenantId_key: { tenantId, key } } });
-      const parsed = SETTINGS[key].schema.safeParse(row?.value);
+      const parsed = SETTINGS[key].schema.safeParse(withDefaults(SETTINGS[key].default, row?.value));
       return (parsed.success ? parsed.data : SETTINGS[key].default) as SettingValue<K>;
     });
   }
@@ -309,7 +381,7 @@ export class SettingsService {
     return (Object.keys(SETTINGS) as SettingKey[]).map((key) => ({
       key,
       description: SETTINGS[key].description,
-      value: stored.get(key)?.value ?? SETTINGS[key].default,
+      value: withDefaults(SETTINGS[key].default, stored.get(key)?.value),
       isDefault: !stored.has(key),
       updatedAt: stored.get(key)?.updatedAt ?? null,
     }));

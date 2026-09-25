@@ -7,6 +7,7 @@ import { useApi } from '@levoja/web-kit/client';
 import { cn, useTheme } from '@levoja/web-kit/ui';
 import { Logo } from '@/components/site-chrome';
 import { PortalSessionProvider, usePortal } from '@/lib/portal-session';
+import { PortalNotifications } from '@/components/pwa';
 
 function PortalHeader() {
   const pathname = usePathname();
@@ -63,6 +64,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   return (
     <PortalSessionProvider>
       <div className="min-h-screen">
+        <PortalNotifications />
         <PortalHeader />
         <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">{children}</main>
       </div>

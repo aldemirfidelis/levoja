@@ -29,8 +29,10 @@ import {
 import { formatBRL } from '@levoja/shared';
 import { usePortal } from '@/lib/portal-session';
 import { maskCpf, maskPhone } from '@/components/signup-fields';
+import { ReferralPanel } from '@/components/referral-panel';
+import { useBrowserNotifications } from '@/components/pwa';
 
-type Tab = 'perfil' | 'enderecos' | 'creditos' | 'atendimento' | 'notificacoes' | 'privacidade' | 'seguranca';
+type Tab = 'perfil' | 'enderecos' | 'creditos' | 'indique' | 'atendimento' | 'notificacoes' | 'privacidade' | 'seguranca';
 
 function Profile() {
   const { me, refresh } = usePortal();
@@ -246,6 +248,28 @@ interface Notification {
   createdAt: string;
 }
 
+function BrowserNotifications() {
+  const toast = useToast();
+  const { permission, request } = useBrowserNotifications();
+  if (permission === 'unsupported' || permission === 'granted') {
+    return permission === 'granted' ? <p className="mb-4 text-sm text-muted">Notificações do navegador ativas: avisamos mesmo com a aba em segundo plano.</p> : null;
+  }
+  return (
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-surface-2 px-4 py-3">
+      <p className="text-sm text-fg">
+        {permission === 'denied'
+          ? 'As notificações do navegador estão bloqueadas. Libere nas configurações do site para receber avisos com a aba em segundo plano.'
+          : 'Receba avisos de pedidos, entregas e mensagens mesmo com a aba em segundo plano.'}
+      </p>
+      {permission === 'default' && (
+        <Button size="sm" variant="secondary" onClick={() => request().then((result) => result === 'granted' && toast.success('Notificações ativadas.'))}>
+          Ativar no navegador
+        </Button>
+      )}
+    </div>
+  );
+}
+
 function Notifications() {
   const { data, isLoading, refetch } = useApi<Paginated<Notification> & { unread: number }>('me/notifications', { pageSize: 50 });
   const markAll = useApiMutation(() => api.post('me/notifications/read-all'), ['me/notifications']);
@@ -261,6 +285,7 @@ function Notifications() {
         )
       }
     >
+      <BrowserNotifications />
       {!data?.data.length ? (
         <p className="text-sm text-muted">Nenhuma notificação.</p>
       ) : (
@@ -432,6 +457,7 @@ function AccountContent() {
             { value: 'perfil', label: 'Perfil' },
             { value: 'enderecos', label: 'Endereços' },
             ...(me.customerId ? [{ value: 'creditos' as const, label: 'Créditos' }] : []),
+            ...(me.customerId ? [{ value: 'indique' as const, label: 'Indique e ganhe' }] : []),
             ...(me.customerId ? [{ value: 'atendimento' as const, label: 'Atendimento' }] : []),
             { value: 'notificacoes', label: 'Notificações' },
             { value: 'privacidade', label: 'Privacidade' },
@@ -442,6 +468,7 @@ function AccountContent() {
       {tab === 'perfil' && <Profile />}
       {tab === 'enderecos' && <Addresses />}
       {tab === 'creditos' && me.customerId && <Credits />}
+      {tab === 'indique' && me.customerId && <ReferralPanel program="CUSTOMER" walletHint="O valor entra nos seus créditos, usados para pagar pedidos e entregas." />}
       {tab === 'atendimento' && me.customerId && <CustomerSupport />}
       {tab === 'notificacoes' && <Notifications />}
       {tab === 'privacidade' && <Privacy />}

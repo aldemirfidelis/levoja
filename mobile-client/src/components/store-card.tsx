@@ -2,12 +2,14 @@ import { Image, View } from 'react-native';
 import { router } from 'expo-router';
 import { Badge, Card, formatBRL, Icon, radius, Row, space, Text, useColors } from '@levoja/mobile-kit';
 import type { StoreCard as Store } from '@/lib/types';
+import { FavoriteButton } from './favorite-button';
 
 export function StoreCard({ store }: { store: Store }) {
   const colors = useColors();
+  const outside = store.covered === false;
   return (
     <Card onPress={() => router.push(`/loja/${store.id}`)} padded={false}>
-      <Row gap={3} style={{ padding: space(3), opacity: store.isOpenNow ? 1 : 0.6 }} align="flex-start">
+      <Row gap={3} style={{ padding: space(3), opacity: store.isOpenNow && !outside ? 1 : 0.6 }} align="flex-start">
         {store.logoUrl ? (
           <Image source={{ uri: store.logoUrl }} style={{ width: 64, height: 64, borderRadius: radius.md }} accessibilityIgnoresInvertColors />
         ) : (
@@ -34,10 +36,12 @@ export function StoreCard({ store }: { store: Store }) {
             </Text>
           </Row>
           <Text variant="caption" tone="muted">
-            {store.isOpenNow ? (store.estimatedMinutes ? `${store.estimatedMinutes.min}-${store.estimatedMinutes.max} min` : 'Aberta agora') : 'Fechada no momento'}
-            {store.minimumOrderCents ? ` · pedido mín. ${formatBRL(store.minimumOrderCents)}` : ''}
+            {outside
+              ? 'Não entrega no endereço selecionado'
+              : `${store.isOpenNow ? (store.estimatedMinutes ? `${store.estimatedMinutes.min}-${store.estimatedMinutes.max} min` : 'Aberta agora') : 'Fechada no momento'}${store.minimumOrderCents ? ` · pedido mín. ${formatBRL(store.minimumOrderCents)}` : ''}`}
           </Text>
         </View>
+        <FavoriteButton companyId={store.id} />
       </Row>
     </Card>
   );

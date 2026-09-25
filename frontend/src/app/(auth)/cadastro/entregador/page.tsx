@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { isAdult, VEHICLE_TYPE_LABELS, VEHICLE_TYPES, VehicleType } from '@levoja/shared';
 import { session } from '@levoja/web-kit/client';
 import { Button, cn, errorMessage, Input } from '@levoja/web-kit/ui';
-import { ConsentFields, Consents, emptyPerson, PersonFields, validatePerson } from '@/components/signup-fields';
+import { ConsentFields, Consents, emptyPerson, PersonFields, personBody, validatePerson } from '@/components/signup-fields';
 
 export default function DriverSignupPage() {
   const router = useRouter();
@@ -32,7 +32,7 @@ export default function DriverSignupPage() {
     setError(undefined);
     try {
       await session.register('driver', {
-        ...form,
+        ...personBody(form),
         birthDate,
         vehicleType,
         acceptTerms: true,
@@ -54,7 +54,7 @@ export default function DriverSignupPage() {
       <h1 className="text-2xl font-extrabold text-fg">Quero ser entregador</h1>
       <p className="mt-1 text-sm text-muted">Depois do cadastro, envie seus documentos para análise.</p>
       <form onSubmit={submit} className="mt-6 space-y-5 rounded-2xl border border-border bg-surface p-6" noValidate>
-        <PersonFields form={form} setForm={setForm} errors={errors} cpfRequired />
+        <PersonFields form={form} setForm={setForm} errors={errors} cpfRequired program="DRIVER" />
         <Input label="Data de nascimento" type="date" required value={birthDate} error={errors.birthDate} onChange={(e) => setBirthDate(e.target.value)} />
         <fieldset>
           <legend className="mb-2 text-sm font-medium">Com qual veículo você vai entregar?</legend>

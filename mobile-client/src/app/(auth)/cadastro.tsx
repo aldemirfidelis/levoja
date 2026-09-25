@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import { isValidEmail, maskPhone, normalizeBrazilianPhone, passwordIssues } from '@levoja/shared';
-import { Button, Checkbox, errorMessage, Field, kitConfig, Screen, Stack, Text, useAuth } from '@levoja/mobile-kit';
+import { useLocalSearchParams } from 'expo-router';
+import { Button, Checkbox, errorMessage, Field, kitConfig, ReferralCodeField, Screen, Stack, Text, useAuth } from '@levoja/mobile-kit';
 
 export default function SignUp() {
   const { register } = useAuth();
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', acceptTerms: false, marketingOptIn: false });
+  const params = useLocalSearchParams<{ codigo?: string }>();
+  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', referralCode: params.codigo ?? '', acceptTerms: false, marketingOptIn: false });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -32,6 +34,7 @@ export default function SignUp() {
         acceptTerms: true,
         acceptPrivacy: true,
         marketingOptIn: form.marketingOptIn,
+        referralCode: form.referralCode.trim() || undefined,
       });
     } catch (err) {
       setError(errorMessage(err));
@@ -46,6 +49,7 @@ export default function SignUp() {
       <Field label="E-mail" value={form.email} onChangeText={(email) => setForm({ ...form, email })} keyboardType="email-address" autoCapitalize="none" autoComplete="email" error={errors.email} />
       <Field label="Celular" value={form.phone} onChangeText={(phone) => setForm({ ...form, phone: maskPhone(phone) })} keyboardType="phone-pad" autoComplete="tel" error={errors.phone} />
       <Field label="Senha" value={form.password} onChangeText={(password) => setForm({ ...form, password })} secure autoComplete="new-password" textContentType="newPassword" error={errors.password} hint="Mínimo de 8 caracteres, com letras e números." />
+      <ReferralCodeField program="CUSTOMER" value={form.referralCode} onChange={(referralCode) => setForm({ ...form, referralCode })} />
       <Stack gap={3}>
         <Checkbox
           checked={form.acceptTerms}

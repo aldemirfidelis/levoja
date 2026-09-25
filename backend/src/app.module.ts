@@ -50,6 +50,7 @@ import { TenantsAdminModule } from './modules/tenants/tenants-admin.module';
 import { CompanyBrandModule } from './modules/tenants/company-brand.module';
 import { PublicApiModule } from './modules/public-api/public-api.module';
 import { PlanFeatureGuard } from './modules/saas/plan-feature.guard';
+import { GrowthModule } from './modules/growth/growth.module';
 
 const env = loadEnv();
 
@@ -124,6 +125,7 @@ const env = loadEnv();
     TenantsAdminModule,
     CompanyBrandModule,
     PublicApiModule,
+    GrowthModule,
   ],
   controllers: [ObservabilityController, PublicFilesController],
   providers: [

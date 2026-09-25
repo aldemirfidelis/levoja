@@ -377,14 +377,44 @@ const CATALOG: Record<string, ProductSeed[]> = {
 async function seedCoupons(tenantId: string) {
   const company = await prisma.company.findFirst({ where: { tenantId, email: { endsWith: '@empresa.dev.levoja.local' } }, orderBy: { createdAt: 'asc' } });
   const coupons = [
-    { code: 'BEMVINDO10', description: '10% na primeira compra (até R$ 15)', type: 'PERCENT' as const, percentBps: 1000, maxDiscountCents: 1500, firstOrderOnly: true, fundedBy: 'PLATFORM' as const },
-    { code: 'FRETEGRATIS', description: 'Entrega grátis em pedidos acima de R$ 50', type: 'FREE_DELIVERY' as const, minOrderCents: 5000, maxPerCustomer: 3, fundedBy: 'PLATFORM' as const },
-    ...(company ? [{ code: 'LOJA5', description: `R$ 5 de desconto na ${company.tradeName}`, type: 'FIXED' as const, amountCents: 500, minOrderCents: 3000, companyId: company.id, fundedBy: 'COMPANY' as const }] : []),
+    { code: 'BEMVINDO10', description: '10% na primeira compra (até R$ 15)', type: 'PERCENT' as const, percentBps: 1000, maxDiscountCents: 1500, firstOrderOnly: true, fundedBy: 'PLATFORM' as const, visibility: 'PUBLIC' },
+    { code: 'FRETEGRATIS', description: 'Entrega grátis em pedidos acima de R$ 50', type: 'FREE_DELIVERY' as const, minOrderCents: 5000, maxPerCustomer: 3, fundedBy: 'PLATFORM' as const, visibility: 'PUBLIC' },
+    { code: 'PRATA15', description: '15% para clientes Prata ou Ouro (até R$ 20)', type: 'PERCENT' as const, percentBps: 1500, maxDiscountCents: 2000, maxPerCustomer: 2, fundedBy: 'PLATFORM' as const, visibility: 'TIER', minTier: 'prata' },
+    { code: 'SEGREDO20', description: 'R$ 20 em pedidos acima de R$ 100 (só com o código)', type: 'FIXED' as const, amountCents: 2000, minOrderCents: 10_000, fundedBy: 'PLATFORM' as const },
+    ...(company ? [{ code: 'LOJA5', description: `R$ 5 de desconto na ${company.tradeName}`, type: 'FIXED' as const, amountCents: 500, minOrderCents: 3000, companyId: company.id, fundedBy: 'COMPANY' as const, visibility: 'PUBLIC' }] : []),
   ];
   for (const coupon of coupons) {
     await prisma.coupon.upsert({ where: { tenantId_code: { tenantId, code: coupon.code } }, create: { tenantId, weekdays: [], ...coupon }, update: {} });
   }
-  console.log(`✔ ${coupons.length} cupons de exemplo`);
+  console.log(`✔ ${coupons.length} cupons de exemplo (listados, por nível e só com código)`);
+
+  // Fidelidade e Indique e ganhe ligados para demonstração (em produção ficam desligados até o painel ativar).
+  const programs: Record<string, unknown> = {
+    loyalty: {
+      enabled: true,
+      pointsPerReal: 1,
+      pointValueCents: 1,
+      minRedeemPoints: 500,
+      expireAfterInactiveDays: 365,
+      tiers: [
+        { key: 'bronze', name: 'Bronze', minPoints: 0, multiplierBps: 10_000, cashbackBps: 0 },
+        { key: 'prata', name: 'Prata', minPoints: 2_000, multiplierBps: 12_500, cashbackBps: 100 },
+        { key: 'ouro', name: 'Ouro', minPoints: 6_000, multiplierBps: 15_000, cashbackBps: 200 },
+      ],
+    },
+    referral: {
+      enabled: true,
+      windowDays: 60,
+      maxPerReferrerPerMonth: 20,
+      customer: { enabled: true, referrerRewardCents: 1000, referredRewardCents: 1000, minOrderCents: 3000 },
+      driver: { enabled: true, referrerRewardCents: 5000, referredRewardCents: 2000, deliveriesRequired: 10 },
+      company: { enabled: true, referrerRewardCents: 10_000, referredRewardCents: 5000, ordersRequired: 10 },
+    },
+  };
+  for (const [key, value] of Object.entries(programs)) {
+    await prisma.platformSetting.upsert({ where: { tenantId_key: { tenantId, key } }, create: { tenantId, key, value: value as object }, update: {} });
+  }
+  console.log('✔ Fidelidade e Indique e ganhe ativos (configurações de demonstração)');
 }
 
 async function seedCatalog(tenantId: string) {

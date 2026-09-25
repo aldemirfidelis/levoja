@@ -4,7 +4,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { RISK_SIGNAL_LABELS } from '@levoja/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { CryptoService } from '../../infra/crypto/crypto.service';
-import { SettingsService, SettingValue } from '../settings/settings.service';
+import { SETTINGS, SettingsService, SettingValue } from '../settings/settings.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { AuditService } from '../audit/audit.service';
 import { CouponsService, CouponContext } from '../coupons/coupons.service';
@@ -80,7 +80,10 @@ export class FraudService implements OnModuleInit {
   async record(event: RiskSignalEvent, fraud?: FraudSettings) {
     const config = fraud ?? (await this.settings.get(event.tenantId, 'fraud'));
     if (!config.enabled) return null;
-    const points = event.type === 'MANUAL' && typeof event.details?.points === 'number' ? Number(event.details.points) : config.points[event.type];
+    const points =
+      event.type === 'MANUAL' && typeof event.details?.points === 'number'
+        ? Number(event.details.points)
+        : (config.points[event.type] ?? SETTINGS.fraud.default.points[event.type] ?? 10);
     let signal;
     try {
       signal = await this.prisma.riskSignal.create({

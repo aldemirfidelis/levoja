@@ -22,3 +22,4 @@ export * from './screens/auth';
 export * from './screens/account';
 export * from './screens/chat';
 export * from './screens/support';
+export * from './screens/referral';

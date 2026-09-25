@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, ReactNode, useState } from 'react';
-import { COUPON_TYPE_LABELS, COUPON_TYPES, CouponType, describeCoupon, formatBRL, WEEKDAY_SHORT_LABELS } from '@levoja/shared';
+import { COUPON_TYPE_LABELS, COUPON_TYPES, COUPON_VISIBILITY_LABELS, CouponType, CouponVisibility, describeCoupon, formatBRL, WEEKDAY_SHORT_LABELS } from '@levoja/shared';
 import { Button, Checkbox, cn, Field, Input, Select, Textarea } from './primitives';
 import { errorMessage } from './feedback';
 import { Badge, DataTable, formatDateTime } from './data';
@@ -31,6 +31,9 @@ export interface CouponRecord {
   fundedBy: 'PLATFORM' | 'COMPANY';
   companyId: string | null;
   companyName?: string | null;
+  /** CODE = só com o código; PUBLIC = listado no app; TIER = exclusivo de nível de fidelidade. */
+  visibility?: CouponVisibility;
+  minTier?: string | null;
 }
 
 export type CouponBody = Record<string, unknown>;
@@ -49,6 +52,7 @@ export function CouponForm({
   onClose,
   extraFields,
   segments,
+  tiers,
 }: {
   coupon: CouponRecord | null;
   title?: string;
@@ -56,6 +60,8 @@ export function CouponForm({
   onClose: () => void;
   extraFields?: ReactNode;
   segments?: { id: string; name: string }[];
+  /** Níveis de fidelidade (painel): habilita cupons exclusivos de nível. */
+  tiers?: { key: string; name: string }[];
 }) {
   const [form, setForm] = useState({
     code: coupon?.code ?? '',
@@ -75,6 +81,8 @@ export function CouponForm({
     maxRedemptions: coupon?.maxRedemptions != null ? String(coupon.maxRedemptions) : '',
     maxPerCustomer: String(coupon?.maxPerCustomer ?? 1),
     isActive: coupon?.isActive ?? true,
+    visibility: coupon?.visibility ?? ('CODE' as CouponVisibility),
+    minTier: coupon?.minTier ?? '',
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -87,6 +95,7 @@ export function CouponForm({
     if (form.type === 'PERCENT' && !(percentBps > 0 && percentBps <= 10_000)) return setError('Percentual entre 0,01% e 100%.');
     if (form.type === 'FIXED' && !form.amountCents) return setError('Informe o valor do desconto.');
     if (!!form.fromTime !== !!form.toTime) return setError('Informe início e fim da janela de horário.');
+    if (form.visibility === 'TIER' && !form.minTier) return setError('Escolha o nível de fidelidade mínimo.');
     const body: CouponBody = {
       description: form.description.trim() || undefined,
       type: form.type,
@@ -103,6 +112,8 @@ export function CouponForm({
       maxRedemptions: form.maxRedemptions ? Number(form.maxRedemptions) : null,
       maxPerCustomer: Number(form.maxPerCustomer) || 1,
       isActive: form.isActive,
+      visibility: form.visibility,
+      minTier: form.visibility === 'TIER' ? form.minTier : null,
       ...(segments ? { segmentId: form.segmentId || null } : {}),
       ...(coupon ? {} : { code: form.code.trim().toUpperCase() }),
     };
@@ -138,6 +149,18 @@ export function CouponForm({
         <MoneyInput label="Pedido mínimo" value={form.minOrderCents} onChange={(cents) => set('minOrderCents', cents ?? 0)} />
         {segments && (
           <Select label="Categoria" value={form.segmentId} placeholder="Todas" options={segments.map((segment) => ({ value: segment.id, label: segment.name }))} onChange={(e) => set('segmentId', e.target.value)} />
+        )}
+        <Select
+          label="Divulgação"
+          value={form.visibility}
+          options={(Object.keys(COUPON_VISIBILITY_LABELS) as CouponVisibility[])
+            .filter((key) => key !== 'TIER' || (tiers?.length ?? 0) > 0 || form.visibility === 'TIER')
+            .map((key) => ({ value: key, label: COUPON_VISIBILITY_LABELS[key] }))}
+          onChange={(e) => set('visibility', e.target.value as CouponVisibility)}
+          hint={form.visibility === 'PUBLIC' ? 'Aparece na Home e em "Meus cupons" do app.' : undefined}
+        />
+        {form.visibility === 'TIER' && (
+          <Select label="Nível mínimo" value={form.minTier} placeholder="Escolha" options={(tiers ?? []).map((tier) => ({ value: tier.key, label: tier.name }))} onChange={(e) => set('minTier', e.target.value)} />
         )}
         {extraFields}
         <Textarea className="sm:col-span-2" label="Descrição para o cliente" maxLength={200} value={form.description} onChange={(e) => set('description', e.target.value)} />
@@ -206,7 +229,11 @@ export function CouponsTable({ rows, onEdit, showOwner }: { rows: CouponRecord[]
           cell: (row) => (
             <span>
               <span className="font-mono font-semibold">{row.code}</span>
-              <span className="block text-xs text-muted">{describeCoupon(row, formatBRL)}{row.minOrderCents ? ` · mín. ${formatBRL(row.minOrderCents)}` : ''}</span>
+              <span className="block text-xs text-muted">
+                {describeCoupon(row, formatBRL)}
+                {row.minOrderCents ? ` · mín. ${formatBRL(row.minOrderCents)}` : ''}
+                {row.visibility === 'PUBLIC' ? ' · listado no app' : row.visibility === 'TIER' ? ` · exclusivo nível ${row.minTier ?? ''}` : ''}
+              </span>
             </span>
           ),
         },

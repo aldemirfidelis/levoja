@@ -18,6 +18,7 @@ const TABS: { path: string; label: string; permission: string | string[] | null;
   { path: '/catalogo', label: 'Catálogo', permission: 'company.products.read' },
   { path: '/cupons', label: 'Cupons', permission: 'company.products.read', approvedOnly: true },
   { path: '/entrega', label: 'Área de entrega', permission: 'company.profile.manage' },
+  { path: '/frota', label: 'Frota própria', permission: 'company.fleet.manage', approvedOnly: true },
   { path: '/dados', label: 'Dados', permission: 'company.profile.manage' },
   { path: '/endereco', label: 'Endereço e horários', permission: 'company.profile.manage' },
   { path: '/documentos', label: 'Documentos', permission: 'company.profile.manage' },
@@ -26,6 +27,7 @@ const TABS: { path: string; label: string; permission: string | string[] | null;
   { path: '/integracoes', label: 'Integrações', permission: 'company.b2b.manage', approvedOnly: true },
   { path: '/marca', label: 'Marca própria', permission: 'company.profile.manage', approvedOnly: true },
   { path: '/plano', label: 'Plano', permission: 'company.profile.manage' },
+  { path: '/indicacoes', label: 'Indique e ganhe', permission: 'company.profile.manage' },
   { path: '/suporte', label: 'Atendimento', permission: 'company.support.use' },
 ];
 

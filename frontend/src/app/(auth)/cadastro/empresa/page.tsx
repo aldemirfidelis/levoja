@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { isValidCnpj, isValidCpf, isValidEmail, normalizeBrazilianPhone } from '@levoja/shared';
 import { session, useApi } from '@levoja/web-kit/client';
 import { Button, Checkbox, errorMessage, Input, Select } from '@levoja/web-kit/ui';
-import { ConsentFields, Consents, emptyPerson, maskCpf, maskPhone, PersonFields, validatePerson } from '@/components/signup-fields';
+import { ConsentFields, Consents, emptyPerson, maskCpf, maskPhone, PersonFields, personBody, validatePerson } from '@/components/signup-fields';
 
 interface Segment {
   id: string;
@@ -60,7 +60,7 @@ export default function CompanySignupPage() {
     setError(undefined);
     try {
       const result = await session.register<{ companyId: string }>('company', {
-        ...person,
+        ...personBody(person),
         acceptTerms: true,
         acceptPrivacy: true,
         acceptCompanyTerms: true,
@@ -86,7 +86,7 @@ export default function CompanySignupPage() {
       <form onSubmit={submit} className="mt-6 space-y-6 rounded-2xl border border-border bg-surface p-6" noValidate>
         <fieldset className="space-y-4">
           <legend className="text-base font-bold">Seus dados de acesso</legend>
-          <PersonFields form={person} setForm={setPerson} errors={errors} cpfRequired />
+          <PersonFields form={person} setForm={setPerson} errors={errors} cpfRequired program="COMPANY" />
         </fieldset>
 
         <fieldset className="grid gap-4 sm:grid-cols-2">

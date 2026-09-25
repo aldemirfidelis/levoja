@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { FlatList, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, Card, Chip, EmptyState, ErrorView, Field, Icon, Loading, Row, space, Text, useApi, useColors, useInfiniteApi } from '@levoja/mobile-kit';
+import { Button, Card, Chip, EmptyState, ErrorView, Field, Icon, Loading, Row, space, Text, useApi, useColors, useInfiniteApi, useInvalidate } from '@levoja/mobile-kit';
 import { AddressSelector } from '@/components/address-selector';
 import { CartBar } from '@/components/cart-bar';
+import { HomeSections } from '@/components/home-sections';
 import { StoreCard } from '@/components/store-card';
 import { useAddress } from '@/lib/address';
 import type { Segment, StoreCard as Store } from '@/lib/types';
@@ -27,6 +28,7 @@ export default function Home() {
   const marketplace = (segments.data ?? []).filter((item) => item.kind === 'MARKETPLACE');
   const onDemand = (segments.data ?? []).filter((item) => item.kind === 'ON_DEMAND');
   const stores = useInfiniteApi<Store>(selected ? 'stores' : null, { addressId: selected?.id, segment, search });
+  const invalidate = useInvalidate();
 
   const header = (
     <View style={{ gap: space(4), paddingTop: insets.top + space(3), paddingBottom: space(2) }}>
@@ -59,6 +61,7 @@ export default function Home() {
           <Chip key={item.id} label={item.name} selected={segment === item.slug} onPress={() => setSegment(segment === item.slug ? '' : item.slug)} />
         ))}
       </ScrollView>
+      {selected && !search && !segment ? <HomeSections addressId={selected.id} /> : null}
       <Text variant="heading">{search ? `Resultados para "${search}"` : 'Lojas perto de você'}</Text>
     </View>
   );
@@ -76,7 +79,17 @@ export default function Home() {
         contentContainerStyle={{ paddingHorizontal: space(4), paddingBottom: space(28) }}
         onEndReachedThreshold={0.4}
         onEndReached={() => stores.hasNextPage && !stores.isFetchingNextPage && stores.fetchNextPage()}
-        refreshControl={<RefreshControl refreshing={stores.isRefetching} onRefresh={() => stores.refetch()} tintColor={colors.brand} colors={[colors.brand]} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={stores.isRefetching}
+            onRefresh={() => {
+              void stores.refetch();
+              void invalidate('me/home', 'me/favorites');
+            }}
+            tintColor={colors.brand}
+            colors={[colors.brand]}
+          />
+        }
         ListEmptyComponent={
           !selected ? (
             <EmptyState icon="location" title="Onde vamos entregar?" description="Cadastre seu endereço para ver as lojas que atendem sua região." action={<Button title="Adicionar endereço" onPress={() => router.push('/enderecos/editar')} />} />

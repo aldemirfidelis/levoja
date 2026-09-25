@@ -8,7 +8,7 @@ export default function SignIn() {
       subtitle="Faça entregas no seu horário e receba via PIX."
       logo={require('../../../assets/logo.png')}
       onForgot={() => router.push('/esqueci-senha')}
-      onRegister={() => router.push('/cadastro')}
+      onRegister={() => router.push('/criar-conta')}
       registerLabel="Quero ser entregador"
     />
   );

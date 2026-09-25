@@ -69,6 +69,12 @@ export const ICONS = {
   receipt: { ios: 'list.bullet.rectangle.portrait', android: 'receipt_long' },
   chat: { ios: 'bubble.left.and.bubble.right.fill', android: 'forum' },
   percent: { ios: 'percent', android: 'percent' },
+  favorite: { ios: 'heart.fill', android: 'favorite' },
+  favoriteOutline: { ios: 'heart', android: 'favorite_border' },
+  gift: { ios: 'gift.fill', android: 'redeem' },
+  share: { ios: 'square.and.arrow.up', android: 'share' },
+  trophy: { ios: 'trophy.fill', android: 'workspace_premium' },
+  team: { ios: 'person.3.fill', android: 'groups' },
 } satisfies Record<string, Exclude<SymbolViewProps['name'], string>>;
 
 export type IconName = keyof typeof ICONS;

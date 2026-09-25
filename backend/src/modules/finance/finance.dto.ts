@@ -84,6 +84,11 @@ export class CouponDto {
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) maxRedemptions?: number | null;
   @ApiPropertyOptional({ default: 1 }) @IsOptional() @IsInt() @Min(1) @Max(1000) maxPerCustomer?: number;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
+  @ApiPropertyOptional({ enum: ['CODE', 'PUBLIC', 'TIER'], default: 'CODE', description: 'CODE = só com o código; PUBLIC = listado no app; TIER = listado e exclusivo de um nível de fidelidade' })
+  @IsOptional()
+  @IsIn(['CODE', 'PUBLIC', 'TIER'])
+  visibility?: 'CODE' | 'PUBLIC' | 'TIER';
+  @ApiPropertyOptional({ description: 'Nível mínimo de fidelidade (cupons TIER)' }) @IsOptional() @Matches(/^[a-z0-9-]{2,20}$/) minTier?: string | null;
 }
 
 export class UpdateCouponDto extends PartialType(CouponDto) {}

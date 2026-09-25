@@ -553,6 +553,11 @@ describe('Fase 6 — Operação e atendimento (E2E)', () => {
       const visitor = await newCustomer();
       await ctx.http().get(`/v1/stores/${company.companyId}`).set(auth(visitor.token)).expect(200);
       await ctx.http().get(`/v1/stores/${company.companyId}`).expect(200);
+      // A visita é gravada em segundo plano (não atrasa a vitrine): espera as duas chegarem.
+      await waitFor(async () => {
+        const [row] = await ctx.prisma.$queryRaw<{ visits: number }[]>`SELECT COALESCE(SUM(visits), 0)::int AS visits FROM store_visits_daily WHERE "companyId" = ${company.companyId}::uuid`;
+        return (row?.visits ?? 0) >= 2;
+      });
       const dashboard = await ctx.http().get(`/v1/companies/${company.companyId}/dashboard`).query({ period: 'today' }).set(auth(company.token)).expect(200);
       const body = dashboard.body;
       expect(body.orders.completed).toBe(2);

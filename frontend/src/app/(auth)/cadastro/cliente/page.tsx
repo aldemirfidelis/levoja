@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { session } from '@levoja/web-kit/client';
 import { Button, errorMessage } from '@levoja/web-kit/ui';
-import { ConsentFields, Consents, emptyPerson, PersonFields, validatePerson } from '@/components/signup-fields';
+import { ConsentFields, Consents, emptyPerson, PersonFields, personBody, validatePerson } from '@/components/signup-fields';
 
 export default function CustomerSignupPage() {
   const router = useRouter();
@@ -25,7 +25,7 @@ export default function CustomerSignupPage() {
     setError(undefined);
     try {
       await session.register('customer', {
-        ...form,
+        ...personBody(form),
         cpf: form.cpf || undefined,
         acceptTerms: true,
         acceptPrivacy: true,
@@ -44,7 +44,7 @@ export default function CustomerSignupPage() {
       <h1 className="text-2xl font-extrabold text-fg">Criar conta de cliente</h1>
       <p className="mt-1 text-sm text-muted">Leva menos de um minuto.</p>
       <form onSubmit={submit} className="mt-6 space-y-5 rounded-2xl border border-border bg-surface p-6" noValidate>
-        <PersonFields form={form} setForm={setForm} errors={errors} cpfRequired={false} />
+        <PersonFields form={form} setForm={setForm} errors={errors} cpfRequired={false} program="CUSTOMER" />
         <ConsentFields consents={consents} setConsents={setConsents} />
         {error && (
           <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">

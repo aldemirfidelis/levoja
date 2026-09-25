@@ -4,6 +4,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { Badge, EmptyState, ErrorView, formatBRL, Icon, Loading, radius, Row, space, Text, useApi, useColors } from '@levoja/mobile-kit';
 import { CartBar } from '@/components/cart-bar';
 import { ProductSheet } from '@/components/product-sheet';
+import { FavoriteButton } from '@/components/favorite-button';
 import type { Product, StoreDetail } from '@/lib/types';
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -58,7 +59,7 @@ export default function StoreScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <Stack.Screen options={{ title: data.tradeName }} />
+      <Stack.Screen options={{ title: data.tradeName, headerRight: () => <FavoriteButton companyId={data.id} size={24} /> }} />
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}

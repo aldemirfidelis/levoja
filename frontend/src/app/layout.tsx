@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { THEME_BOOTSTRAP_SCRIPT } from '@levoja/web-kit/theme-script';
 import { brandCss, fetchTenantBranding } from '@levoja/web-kit/brand';
 import { Providers } from './providers';
@@ -14,9 +14,15 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: `${brand.appName} — Entregas e compras sob demanda`, template: `%s · ${brand.appName}` },
     description:
       'Peça comida, remédios, mercado e produtos de lojas, ou envie documentos e encomendas com entregadores próximos. Para clientes, empresas e entregadores.',
-    icons: { icon: brand.logoUrl ?? '/icon.svg' },
+    icons: { icon: brand.logoUrl ?? '/icon.svg', apple: '/pwa-icon/192' },
+    appleWebApp: { capable: true, title: brand.appName, statusBarStyle: 'default' },
     openGraph: { type: 'website', locale: 'pt_BR', siteName: brand.appName },
   };
+}
+
+export async function generateViewport(): Promise<Viewport> {
+  const brand = await branding();
+  return { themeColor: brand.primaryColor, width: 'device-width', initialScale: 1 };
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

@@ -4,13 +4,16 @@ Plataforma de **marketplace + delivery + logística sob demanda + SaaS B2B**. Co
 (restaurantes, farmácias, mercados, lojas...) e entregadores, e também atende entregas avulsas
 (pessoa → pessoa, empresa → cliente) e corporativas.
 
-> Status: **Fases 1 a 9 concluídas** — fundação (API, autenticação, RBAC, LGPD, auditoria), marketplace,
+> Status: **Fases 1 a 10 concluídas** — fundação (API, autenticação, RBAC, LGPD, auditoria), marketplace,
 > logística, financeiro, os aplicativos Android/iOS do cliente e do entregador, a operação (torre de
 > controle, mapa de calor, relatórios, atendimento, chat e comunicados), o corporativo (contratos, tabelas
 > especiais, lotes por planilha/API com rotas, recorrências, centros de custo e faturamento mensal), a
 > inteligência (antifraude com score e revisão humana, previsões, tempo de entrega calibrado, anomalias,
-> preço dinâmico com aprovação e IA assistiva) e a escala (multi-cidade, tenants white label, planos SaaS
-> e API pública com webhooks).
+> preço dinâmico com aprovação e IA assistiva), a escala (multi-cidade, tenants white label, planos SaaS
+> e API pública com webhooks) e os complementos (Home personalizada, favoritas, fidelidade, Indique e ganhe,
+> frota própria e PWA do portal).
+> Para testar tudo localmente (API, portal, painel e apps no celular Android por cabo), veja
+> [docs/testes-locais.md](docs/testes-locais.md).
 > Veja o [roadmap](docs/roadmap.md).
 
 ## Estrutura
@@ -109,7 +112,8 @@ controle, mapa de calor, relatórios/CSV, painéis, comunicados com consentiment
 contratos, limites, lotes com rotas, recorrências, faturas e chaves de API — e a inteligência: antifraude,
 previsão, sugestões de preço, anomalias, calibração do tempo de entrega, avaliações e IA assistiva com um
 provedor simulado; os testes nunca chamam um provedor de IA real — e a escala: tenants, cidades, planos e
-cobrança, API pública com limites e webhooks recebidos por um servidor local, e marca própria).
+cobrança, API pública com limites e webhooks recebidos por um servidor local, e marca própria — e os
+complementos: Home, cupons por nível, fidelidade, os três programas de indicação com antifraude e frota própria).
 
 ### Pagamentos em desenvolvimento (sandbox)
 
@@ -181,6 +185,21 @@ Em produção, `sandbox` é recusado na inicialização; use `PAYMENT_GATEWAY=no
 - **API pública** (portal → Integrações): chaves com escopos, webhooks assinados e uso das chamadas.
   Documentação em `/docs/public` (sempre publicada). Em desenvolvimento, `WEBHOOK_ALLOW_PRIVATE_URLS=true`
   permite webhooks para `localhost`; em produção só HTTPS e IP público.
+
+### Fidelidade, indicação e frota própria
+
+- **Fidelidade** (painel → Fidelidade e indicação → Regras): desligada por padrão. Pedido entregue gera pontos
+  (valor dos produtos × pontos por real × multiplicador do nível) e, nos níveis com cashback, crédito na
+  carteira do cliente (custo da plataforma). Pontos viram créditos no app; o saldo expira após o período sem
+  pontuar. Cupons "exclusivos de nível" aparecem para todos, mas só valem a partir do nível mínimo.
+- **Indique e ganhe**: desligado por padrão. Cada pessoa tem um código (apps, portal e `/convite/<código>`);
+  a recompensa é paga quando o indicado cumpre a meta (1º pedido, N entregas ou N pedidos da empresa). Mesmo
+  aparelho em quem indica e em quem é indicado retém a recompensa e abre sinal de risco — a equipe libera ou
+  recusa em **Indicações** (auditado).
+- **Frota própria** (portal → Frota própria; recurso `own_fleet` do plano): convites pelo e-mail/celular do
+  entregador, que responde no app. O modo de entrega (plataforma, frota própria ou híbrido) fica em Dados.
+- **PWA**: o portal pode ser instalado; o service worker só é registrado no build de produção
+  (`pnpm --filter @levoja/frontend build && pnpm --filter @levoja/frontend start`) ou com `NEXT_PUBLIC_PWA_DEV=true`.
 
 ## Principais decisões
 

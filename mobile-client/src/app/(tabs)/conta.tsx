@@ -8,6 +8,7 @@ export default function AccountTab() {
   const { me, logout } = useAuth();
   const credits = useApi<{ availableCents: number }>('customers/me/wallet');
   const notifications = useApi<{ unread: number }>('me/notifications', { pageSize: 1 });
+  const home = useApi<{ loyalty: { points: number; tier: { name: string } } | null; referral: { referrerRewardCents: number } | null }>('me/home');
   if (!me) return null;
   return (
     <Screen>
@@ -23,6 +24,16 @@ export default function AccountTab() {
         <ListItem icon="location" title="Endereços" onPress={() => router.push('/enderecos')} />
         <ListItem icon="wallet" title="Créditos" subtitle={credits.data ? formatBRL(credits.data.availableCents) : undefined} onPress={() => router.push('/conta/creditos')} />
         <ListItem icon="bell" title="Notificações" right={notifications.data?.unread ? <Badge label={String(notifications.data.unread)} tone="brand" /> : undefined} onPress={() => router.push('/conta/notificacoes')} />
+      </ListGroup>
+      <ListGroup title="Vantagens">
+        {home.data?.loyalty ? (
+          <ListItem icon="trophy" title="Fidelidade" subtitle={`${home.data.loyalty.tier.name} · ${home.data.loyalty.points.toLocaleString('pt-BR')} pontos`} onPress={() => router.push('/conta/fidelidade')} />
+        ) : null}
+        {home.data?.referral ? (
+          <ListItem icon="gift" title="Indique e ganhe" subtitle={`Ganhe ${formatBRL(home.data.referral.referrerRewardCents)} por amigo indicado`} onPress={() => router.push('/conta/indique')} />
+        ) : null}
+        <ListItem icon="coupon" title="Meus cupons" onPress={() => router.push('/conta/cupons')} />
+        <ListItem icon="favorite" title="Lojas favoritas" onPress={() => router.push('/conta/favoritas')} />
       </ListGroup>
       <ListGroup title="Segurança e privacidade">
         <ListItem icon="lock" title="Senha, verificação em duas etapas e sessões" onPress={() => router.push('/conta/seguranca')} />
