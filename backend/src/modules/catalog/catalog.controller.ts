@@ -17,7 +17,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { CompanyPermission, Public } from '../../common/decorators';
+import { AllowApiKey, CompanyPermission, Public, RequireFeature } from '../../common/decorators';
 import { TenantId } from '../../common/tenant.decorator';
 import type { AuthUser } from '../../common/auth/auth-user';
 import { PrismaService } from '../../infra/prisma/prisma.service';
@@ -59,6 +59,7 @@ export class StoresController {
 
 @ApiTags('Empresas • Catálogo')
 @ApiBearerAuth()
+@RequireFeature('catalog')
 @Controller('companies/:companyId')
 export class CompanyCatalogController {
   constructor(
@@ -70,6 +71,7 @@ export class CompanyCatalogController {
   // --- Categorias ---
 
   @Get('categories')
+  @AllowApiKey('catalog:read')
   @CompanyPermission('company.products.read', 'companies.read')
   categories(@Param('companyId', ParseUUIDPipe) companyId: string) {
     return this.catalog.listCategories(companyId);
@@ -97,18 +99,21 @@ export class CompanyCatalogController {
   // --- Produtos ---
 
   @Get('products')
+  @AllowApiKey('catalog:read')
   @CompanyPermission('company.products.read', 'companies.read')
   products(@Param('companyId', ParseUUIDPipe) companyId: string, @Query() query: ProductsQueryDto) {
     return this.catalog.listProducts(companyId, query);
   }
 
   @Get('products/:id')
+  @AllowApiKey('catalog:read')
   @CompanyPermission('company.products.read', 'companies.read')
   product(@Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string) {
     return this.catalog.getProduct(companyId, id);
   }
 
   @Post('products')
+  @AllowApiKey('catalog:write')
   @CompanyPermission('company.products.manage')
   @ApiOperation({ summary: 'Cadastrar produto (com variações, adicionais ou itens de combo)' })
   async createProduct(@Param('companyId', ParseUUIDPipe) companyId: string, @Body() dto: ProductDto) {
@@ -118,6 +123,7 @@ export class CompanyCatalogController {
   }
 
   @Patch('products/:id')
+  @AllowApiKey('catalog:write')
   @CompanyPermission('company.products.manage')
   updateProduct(@Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateProductDto) {
     return this.catalog.updateProduct(companyId, id, dto);
@@ -131,6 +137,7 @@ export class CompanyCatalogController {
   }
 
   @Post('products/:id/stock')
+  @AllowApiKey('catalog:write')
   @CompanyPermission('company.products.manage')
   @ApiOperation({ summary: 'Entrada/saída de estoque' })
   adjustStock(@Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: StockAdjustmentDto) {
@@ -159,24 +166,28 @@ export class CompanyCatalogController {
   // --- Áreas de atendimento ---
 
   @Get('service-areas')
+  @RequireFeature(null)
   @CompanyPermission('company.profile.manage', 'companies.read')
   serviceAreas(@Param('companyId', ParseUUIDPipe) companyId: string) {
     return this.areas.list(companyId);
   }
 
   @Post('service-areas')
+  @RequireFeature(null)
   @CompanyPermission('company.profile.manage')
   createArea(@Param('companyId', ParseUUIDPipe) companyId: string, @Body() dto: ServiceAreaDto) {
     return this.areas.create(companyId, dto);
   }
 
   @Put('service-areas/:id')
+  @RequireFeature(null)
   @CompanyPermission('company.profile.manage')
   updateArea(@Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: ServiceAreaDto) {
     return this.areas.update(companyId, id, dto);
   }
 
   @Delete('service-areas/:id')
+  @RequireFeature(null)
   @HttpCode(204)
   @CompanyPermission('company.profile.manage')
   async deleteArea(@Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string) {

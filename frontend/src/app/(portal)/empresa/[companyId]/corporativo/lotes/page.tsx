@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { FileSpreadsheet, Upload } from 'lucide-react';
 import { BATCH_STATUS_LABELS, formatBRL } from '@levoja/shared';
 import { api, Paginated, useApi } from '@levoja/web-kit/client';
-import { Badge, Button, Card, Checkbox, DataTable, Dialog, EmptyState, ErrorState, formatDateTime, Input, Pagination, Select, SkeletonRows, useToast } from '@levoja/web-kit/ui';
+import { Badge, Button, Card, Checkbox, DataTable, Dialog, EmptyState, formatDateTime, Input, Pagination, Select, SkeletonRows, useToast } from '@levoja/web-kit/ui';
 import { BATCH_TONE, type B2bOverview, type BatchView, type CompanyLocation, type CostCenter } from '@/components/b2b';
 import { useCompany } from '@/lib/company';
+import { PlanAwareError } from '@/components/plan-gate';
 
 function UploadDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const { company } = useCompany();
@@ -111,7 +112,7 @@ export default function BatchesPage() {
         Importe dezenas ou centenas de entregas de uma vez. Validamos cada endereço e preço, agrupamos as entregas em rotas e acompanhamos tudo até a última entrega. Integrações também podem enviar lotes pela API.
       </p>
       {isLoading && <SkeletonRows rows={4} />}
-      {error && <ErrorState error={error} onRetry={() => refetch()} />}
+      {error && <PlanAwareError error={error} onRetry={() => refetch()} />}
       {data?.data.length === 0 && <EmptyState icon={<FileSpreadsheet className="h-8 w-8" />} title="Nenhum lote ainda" description="Baixe o modelo, preencha e importe." />}
       {data && data.data.length > 0 && (
         <>

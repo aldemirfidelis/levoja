@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { formatBRL } from '@levoja/shared';
 import { useApi } from '@levoja/web-kit/client';
-import { BarList, Card, ColumnChart, ErrorState, Select, Skeleton, StatCard, Tabs } from '@levoja/web-kit/ui';
+import { BarList, Card, ColumnChart, Select, Skeleton, StatCard, Tabs } from '@levoja/web-kit/ui';
+import { PlanAwareError } from '@/components/plan-gate';
 
 type Period = 'today' | 'week' | 'month';
 
@@ -43,7 +44,7 @@ export function CompanyDashboard({ companyId }: { companyId: string }) {
           { value: 'month', label: 'Últimos 30 dias' },
         ]}
       />
-      {error && <ErrorState error={error} onRetry={() => refetch()} />}
+      {error && <PlanAwareError error={error} onRetry={() => refetch()} />}
       {isLoading && <Skeleton className="h-64" />}
       {data && (
         <div className={`space-y-6 transition-opacity ${isFetching ? 'opacity-60' : ''}`}>

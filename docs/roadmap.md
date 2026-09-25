@@ -138,5 +138,19 @@ responder cliente) ficam com uma pessoa, e toda ação automática é leve, conf
 | Interfaces: painel (Antifraude, Inteligência, sugestão no atendimento, filtros de avaliações, alertas na torre), portal (Assistente) e app do entregador (GPS simulado) | ✅ |
 | Testes: unitários (score, GPS, taxas, previsão, anomalias, rotas, léxico, dados pessoais) e E2E da inteligência (com provedor de IA simulado) | ✅ |
 
-## Fase 9 — Escala ⏳
-Multi-cidade, white label (domínio, marca, app), planos SaaS, API pública.
+## Fase 9 — Escala ✅
+
+| Item | Status |
+|---|---|
+| Multi-tenant: criação de tenants pelo painel com provisionamento (papéis, segmentos, preços, comissão, planos, documentos legais) e convite ao primeiro administrador; suspensão; isolamento de usuários e dados por tenant | ✅ |
+| White label da plataforma: nome, cor (paleta gerada), logotipo, contatos, domínios e endereços por tenant; portal e painel com a marca do tenant; e-mails com a marca e os links do tenant; apps Android/iOS gerados por marca (nome, ícones, cores, bundle, tenant) | ✅ |
+| Marca própria da empresa (plano Enterprise): cor e domínio próprio da página da loja, resolvido pelo portal | ✅ |
+| Multi-cidade: cadastro de cidades com situação (em preparação, em operação, pausada), mensagem própria, bloqueio de novos pedidos e entregas fora de operação, opção de exigir cidade cadastrada, lista de espera com aviso no lançamento, indicadores por cidade e cidades com movimento sem cadastro | ✅ |
+| Planos SaaS configuráveis no painel (Básico, Profissional e Enterprise de partida): recursos, limites (produtos, equipe, chaves, unidades, chamadas/minuto), preço e teste grátis | ✅ |
+| Assinaturas: contratação e troca pela empresa ou pela equipe, upgrade na hora com diferença proporcional, downgrade no fim do período, cancelamento, mensalidade lançada na carteira da empresa, atraso com carência e restrição aos recursos do plano padrão, anulação de cobranças, MRR | ✅ |
+| Recursos por plano aplicados em todas as rotas da empresa (a equipe da plataforma não é bloqueada), frota própria e SLA prioritário por plano; cobrança por planos desligada por padrão | ✅ |
+| API pública: escopos por rota (catálogo, pedidos, entregas), recurso do plano por escopo, limite de chamadas por minuto com cabeçalhos `X-RateLimit-*`, registro de uso por chave e documentação OpenAPI própria (`/docs/public`) | ✅ |
+| Webhooks: endpoints por empresa, eventos de pedidos, entregas, faturas e assinatura, assinatura HMAC com carimbo de tempo, novas tentativas com espera crescente, desativação após falhas seguidas com aviso, teste, reenvio e histórico; bloqueio de endereços internos (SSRF) | ✅ |
+| Interfaces: painel (Tenants, Marca, Cidades, Planos SaaS), portal (Plano, Integrações, Marca própria, página pública da loja, Onde atendemos, planos na página para empresas) | ✅ |
+| Testes: unitários (assinatura e segurança dos webhooks) e E2E da escala (tenants, cidades, planos e cobrança, API pública, webhooks e marca própria) | ✅ |
+| Publicação dos apps de cada marca nas lojas (contas da própria marca) | ⏳ depende das contas de cada cliente |

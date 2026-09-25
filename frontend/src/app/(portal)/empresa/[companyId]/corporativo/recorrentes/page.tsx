@@ -4,9 +4,10 @@ import { FormEvent, useState } from 'react';
 import { Plus, Repeat } from 'lucide-react';
 import { ITEM_CATEGORIES, ITEM_CATEGORY_LABELS, formatBRL } from '@levoja/shared';
 import { api, useApi } from '@levoja/web-kit/client';
-import { Badge, Button, Card, Dialog, EmptyState, ErrorState, formatDate, formatDateTime, Input, Select, SkeletonRows, Textarea, useToast } from '@levoja/web-kit/ui';
+import { Badge, Button, Card, Dialog, EmptyState, formatDate, formatDateTime, Input, Select, SkeletonRows, Textarea, useToast } from '@levoja/web-kit/ui';
 import { WEEKDAYS, type B2bOverview, type CompanyLocation, type CostCenter } from '@/components/b2b';
 import { useCompany } from '@/lib/company';
+import { PlanAwareError } from '@/components/plan-gate';
 
 interface Recurrence {
   id: string;
@@ -167,7 +168,7 @@ export default function RecurringPage() {
     <Card title="Entregas recorrentes" actions={manage && <Button icon={<Plus className="h-4 w-4" />} onClick={() => setCreating(true)}>Nova recorrência</Button>}>
       <p className="mb-4 text-sm text-muted">Nos dias e horários escolhidos, a entrega é agendada automaticamente (com antecedência) e segue o contrato, o limite e o centro de custo.</p>
       {isLoading && <SkeletonRows rows={3} />}
-      {error && <ErrorState error={error} onRetry={() => refetch()} />}
+      {error && <PlanAwareError error={error} onRetry={() => refetch()} />}
       {data?.length === 0 && <EmptyState icon={<Repeat className="h-8 w-8" />} title="Nenhuma entrega recorrente" />}
       <ul className="space-y-3">
         {data?.map((recurrence) => (

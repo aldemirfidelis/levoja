@@ -10,6 +10,7 @@ import { MapsService } from '../geo/maps.service';
 import { PricingService, QuoteInput } from '../pricing/pricing.service';
 import type { PriceQuote } from '../pricing/pricing.engine';
 import { SettingsService } from '../settings/settings.service';
+import { CitiesService } from '../cities/cities.service';
 import { RISK_SIGNAL, RiskSignalEvent } from '../../common/intelligence-events';
 import type { EtaModel } from '../../common/eta-model';
 import { paginated, skipOf } from '../../common/pagination';
@@ -144,6 +145,7 @@ export class DeliveriesService {
     private readonly pricing: PricingService,
     private readonly settings: SettingsService,
     private readonly events: EventEmitter2,
+    private readonly cities: CitiesService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -232,6 +234,8 @@ export class DeliveriesService {
   async quote(user: AuthUser, dto: DeliveryQuoteDto, companyId?: string) {
     const pickup = await this.resolveStop(user, dto.pickup, companyId && !dto.pickup ? await this.companyStop(companyId) : null, companyId);
     const dropoff = await this.resolveStop(user, dto.dropoff, null, companyId);
+    // Multi-cidade: a coleta precisa estar numa cidade em operação.
+    await this.cities.assertOperating(user.tenantId, pickup.city, pickup.state);
     const required = this.requiredVehicle(dto.weightKg, dto);
     if (dto.vehicleType && VEHICLE_RANK[dto.vehicleType] < VEHICLE_RANK[required]) {
       throw new BadRequestException(`Para esta carga é necessário no mínimo: ${required}.`);

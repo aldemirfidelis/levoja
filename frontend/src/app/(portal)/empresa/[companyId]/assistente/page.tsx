@@ -4,8 +4,9 @@ import { FormEvent, useState } from 'react';
 import { AlertTriangle, Bot, CheckCircle2, Info, Send, Sparkles } from 'lucide-react';
 import { formatBRL, REVIEW_THEME_LABELS, type ReviewTheme } from '@levoja/shared';
 import { api, useApi } from '@levoja/web-kit/client';
-import { BarList, Button, Card, ComparisonChart, ErrorState, PageHeader, Skeleton, StatCard, Textarea } from '@levoja/web-kit/ui';
+import { BarList, Button, Card, ComparisonChart, PageHeader, Skeleton, StatCard, Textarea } from '@levoja/web-kit/ui';
 import { useCompany } from '@/lib/company';
+import { PlanAwareError } from '@/components/plan-gate';
 
 interface Insights {
   company: { tradeName: string; ratingAvg: number; ratingCount: number; declaredPrepMinutes: number; learnedPrepMinutes: number | null };
@@ -136,7 +137,7 @@ export default function CompanyAssistantPage() {
   const { company } = useCompany();
   const { data, error, isLoading, refetch } = useApi<Insights>(`companies/${company.id}/assistant`);
 
-  if (error) return <ErrorState error={error} onRetry={() => refetch()} />;
+  if (error) return <PlanAwareError error={error} onRetry={() => refetch()} />;
   if (isLoading || !data) return <Skeleton className="h-96" />;
   const { sales, performance } = data;
   const onTime = performance.lateRate == null ? null : 1 - performance.lateRate;

@@ -14,6 +14,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   async onModuleInit(): Promise<void> {
     await this.$connect();
     this.logger.log('Conectado ao PostgreSQL');
+    // Textos com emoji e outros símbolos exigem banco em UTF-8 (bancos WIN1252/LATIN1 recusam esses caracteres).
+    const [row] = await this.$queryRaw<{ encoding: string }[]>`SELECT pg_encoding_to_char(encoding) AS encoding FROM pg_database WHERE datname = current_database()`;
+    if (row && row.encoding !== 'UTF8') {
+      this.logger.warn(`O banco usa a codificação ${row.encoding}: textos com emoji ou símbolos fora dessa tabela serão recusados. Crie o banco com ENCODING 'UTF8' (veja o README).`);
+    }
   }
 
   async onModuleDestroy(): Promise<void> {

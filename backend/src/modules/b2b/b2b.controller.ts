@@ -4,7 +4,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import type { BatchRow } from './batch-file';
-import { AllowApiKey, CompanyPermission, CurrentUser, RequirePermissions } from '../../common/decorators';
+import { AllowApiKey, CompanyPermission, CurrentUser, RequireFeature, RequirePermissions } from '../../common/decorators';
 import type { AuthUser } from '../../common/auth/auth-user';
 import { PaginationQueryDto } from '../../common/pagination';
 import { AppConfig } from '../../config/config.module';
@@ -86,6 +86,7 @@ function toRow(item: BatchItemDto): BatchRow {
 
 @ApiTags('Empresas • B2B')
 @ApiBearerAuth()
+@RequireFeature('b2b')
 @Controller('companies/:companyId/b2b')
 export class CompanyB2bController {
   constructor(
@@ -107,7 +108,8 @@ export class CompanyB2bController {
   // --- Centros de custo ---
 
   @Get('cost-centers')
-  @AllowApiKey()
+  @RequireFeature('deliveries')
+  @AllowApiKey('deliveries:read')
   @CompanyPermission('company.deliveries.request', 'contracts.read')
   costCenters(@Param('companyId', ParseUUIDPipe) companyId: string) {
     return this.b2b.listCostCenters(companyId);
@@ -128,19 +130,22 @@ export class CompanyB2bController {
   // --- Unidades e locais ---
 
   @Get('locations')
-  @AllowApiKey()
+  @RequireFeature('deliveries')
+  @AllowApiKey('deliveries:read')
   @CompanyPermission('company.deliveries.request', 'contracts.read')
   locations(@Param('companyId', ParseUUIDPipe) companyId: string, @Query('all') all?: string) {
     return this.b2b.listLocations(companyId, all === 'true');
   }
 
   @Post('locations')
+  @RequireFeature('deliveries')
   @CompanyPermission('company.b2b.manage')
   createLocation(@CurrentUser() user: AuthUser, @Param('companyId', ParseUUIDPipe) companyId: string, @Body() dto: LocationDto) {
     return this.b2b.createLocation(user, companyId, dto);
   }
 
   @Patch('locations/:id')
+  @RequireFeature('deliveries')
   @CompanyPermission('company.b2b.manage')
   updateLocation(@CurrentUser() user: AuthUser, @Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateLocationDto) {
     return this.b2b.updateLocation(user, companyId, id, dto);
@@ -149,12 +154,14 @@ export class CompanyB2bController {
   // --- Chaves de API ---
 
   @Get('api-keys')
+  @RequireFeature('integrations')
   @CompanyPermission('company.b2b.manage')
   apiKeys(@Param('companyId', ParseUUIDPipe) companyId: string) {
     return this.b2b.listApiKeys(companyId);
   }
 
   @Post('api-keys')
+  @RequireFeature('integrations')
   @CompanyPermission('company.b2b.manage')
   @ApiOperation({ summary: 'Criar chave de API (o segredo aparece somente nesta resposta)' })
   createApiKey(@CurrentUser() user: AuthUser, @Param('companyId', ParseUUIDPipe) companyId: string, @Body() dto: ApiKeyDto) {
@@ -162,6 +169,7 @@ export class CompanyB2bController {
   }
 
   @Delete('api-keys/:id')
+  @RequireFeature('integrations')
   @HttpCode(204)
   @CompanyPermission('company.b2b.manage')
   async revokeApiKey(@CurrentUser() user: AuthUser, @Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string) {
@@ -200,18 +208,21 @@ export class CompanyB2bController {
   // --- Faturas ---
 
   @Get('invoices')
+  @RequireFeature(null)
   @CompanyPermission('company.finance.read', 'invoices.read')
   invoicesList(@Param('companyId', ParseUUIDPipe) companyId: string, @Query() query: InvoicesQueryDto) {
     return this.invoices.listForCompany(companyId, query);
   }
 
   @Get('invoices/:id')
+  @RequireFeature(null)
   @CompanyPermission('company.finance.read', 'invoices.read')
   invoice(@Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string) {
     return this.invoices.getForCompany(companyId, id);
   }
 
   @Get('invoices/:id/export.csv')
+  @RequireFeature(null)
   @CompanyPermission('company.finance.read', 'invoices.read')
   @ApiProduces('text/csv')
   async invoiceCsv(@Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string, @Res({ passthrough: true }) response: Response) {
@@ -219,6 +230,7 @@ export class CompanyB2bController {
   }
 
   @Post('invoices/:id/pay')
+  @RequireFeature(null)
   @HttpCode(200)
   @CompanyPermission('company.finance.read')
   @ApiOperation({ summary: 'Gerar PIX para pagar a fatura' })
@@ -247,6 +259,7 @@ export class CompanyB2bController {
 @ApiTags('Empresas • Entregas em lote')
 @ApiBearerAuth()
 @ApiHeader({ name: 'X-Api-Key', required: false, description: 'Alternativa ao token: chave de API da empresa (integrações)' })
+@RequireFeature('b2b')
 @Controller('companies/:companyId/delivery-batches')
 export class DeliveryBatchesController {
   constructor(
@@ -255,7 +268,7 @@ export class DeliveryBatchesController {
   ) {}
 
   @Get('template.csv')
-  @AllowApiKey()
+  @AllowApiKey('deliveries:read')
   @CompanyPermission('company.deliveries.request')
   @ApiProduces('text/csv')
   templateCsv(@Res({ passthrough: true }) response: Response) {
@@ -273,7 +286,7 @@ export class DeliveryBatchesController {
   }
 
   @Post('upload')
-  @AllowApiKey()
+  @AllowApiKey('deliveries:write')
   @Throttle(limit(10))
   @CompanyPermission('company.deliveries.request')
   @UseInterceptors(BATCH_UPLOAD)
@@ -285,7 +298,7 @@ export class DeliveryBatchesController {
   }
 
   @Post()
-  @AllowApiKey()
+  @AllowApiKey('deliveries:write')
   @Throttle(limit(10))
   @CompanyPermission('company.deliveries.request')
   @ApiOperation({ summary: 'Criar lote pela API (JSON)' })
@@ -295,28 +308,28 @@ export class DeliveryBatchesController {
   }
 
   @Get()
-  @AllowApiKey()
+  @AllowApiKey('deliveries:read')
   @CompanyPermission('company.orders.read', 'deliveries.read')
   list(@Param('companyId', ParseUUIDPipe) companyId: string, @Query() query: PaginationQueryDto) {
     return this.batches.list(companyId, query);
   }
 
   @Get(':id')
-  @AllowApiKey()
+  @AllowApiKey('deliveries:read')
   @CompanyPermission('company.orders.read', 'deliveries.read')
   get(@Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string) {
     return this.batches.get(companyId, id);
   }
 
   @Get(':id/items')
-  @AllowApiKey()
+  @AllowApiKey('deliveries:read')
   @CompanyPermission('company.orders.read', 'deliveries.read')
   items(@Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string, @Query() query: BatchItemsQueryDto) {
     return this.batches.items(companyId, id, query);
   }
 
   @Get(':id/export.csv')
-  @AllowApiKey()
+  @AllowApiKey('deliveries:read')
   @CompanyPermission('company.orders.read', 'deliveries.read')
   @ApiProduces('text/csv')
   async export(@Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string, @Res({ passthrough: true }) response: Response) {
@@ -325,7 +338,7 @@ export class DeliveryBatchesController {
 
   @Post(':id/confirm')
   @HttpCode(200)
-  @AllowApiKey()
+  @AllowApiKey('deliveries:write')
   @CompanyPermission('company.deliveries.request')
   @ApiOperation({ summary: 'Confirmar: cria as entregas válidas, agrupadas em rotas' })
   confirm(@CurrentUser() user: AuthUser, @Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: ConfirmBatchDto) {
@@ -334,7 +347,7 @@ export class DeliveryBatchesController {
 
   @Post(':id/cancel')
   @HttpCode(200)
-  @AllowApiKey()
+  @AllowApiKey('deliveries:write')
   @CompanyPermission('company.deliveries.request')
   cancel(@CurrentUser() user: AuthUser, @Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: CancelBatchDto) {
     return this.batches.cancel(user, companyId, id, dto.reason);

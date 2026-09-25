@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { Building2, FileSpreadsheet, Repeat, Receipt } from 'lucide-react';
 import { formatBRL, VEHICLE_TYPE_LABELS } from '@levoja/shared';
 import { useApi } from '@levoja/web-kit/client';
-import { Badge, Card, DescriptionList, ErrorState, Skeleton, formatDate } from '@levoja/web-kit/ui';
+import { Badge, Card, DescriptionList, Skeleton, formatDate } from '@levoja/web-kit/ui';
 import type { B2bOverview } from '@/components/b2b';
 import { useCompany } from '@/lib/company';
+import { PlanAwareError } from '@/components/plan-gate';
 
 /** Uso do limite de crédito: a cor da barra indica o nível (com o percentual escrito ao lado). */
 function CreditMeter({ used, limit }: { used: number; limit: number }) {
@@ -32,7 +33,7 @@ export default function CorporateOverviewPage() {
   const { data, error, isLoading, refetch } = useApi<B2bOverview>(`companies/${company.id}/b2b`);
   const base = `/empresa/${company.id}/corporativo`;
 
-  if (error) return <ErrorState error={error} onRetry={() => refetch()} />;
+  if (error) return <PlanAwareError error={error} onRetry={() => refetch()} />;
   if (isLoading || !data) return <Skeleton className="h-64" />;
   const contract = data.contract;
 

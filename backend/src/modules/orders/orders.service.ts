@@ -24,6 +24,7 @@ import { paginated, skipOf } from '../../common/pagination';
 import type { AuthUser } from '../../common/auth/auth-user';
 import { AdminOrdersQueryDto, CheckoutDto, OrdersQueryDto, QuoteOrderDto } from './orders.dto';
 import { CouponsService } from '../coupons/coupons.service';
+import { CitiesService } from '../cities/cities.service';
 import type { EtaModel } from '../../common/eta-model';
 import { Prisma } from '../../generated/prisma/client';
 import type { Coupon } from '../../generated/prisma/client';
@@ -109,6 +110,7 @@ export class OrdersService implements OnModuleInit {
     private readonly areas: ServiceAreasService,
     private readonly coupons: CouponsService,
     private readonly events: EventEmitter2,
+    private readonly cities: CitiesService,
   ) {}
 
   onModuleInit(): void {
@@ -226,6 +228,12 @@ export class OrdersService implements OnModuleInit {
         timeZone: company.timezone,
       });
       deliveryFeeCents = Math.max(0, fee.totalCents + (coverage.area?.feeAdjustmentCents ?? 0));
+    }
+
+    // Multi-cidade: cidade pausada ou sem operação não recebe pedidos com entrega.
+    if (fulfillment === 'DELIVERY' && address) {
+      const gate = await this.cities.gate(user.tenantId, address.city, address.state);
+      if (!gate.operating) issues.push(gate.reason);
     }
 
     if (subtotalCents < minimumOrderCents) {

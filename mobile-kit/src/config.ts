@@ -9,6 +9,8 @@ export interface KitConfig {
   webUrl: string;
   /** Tenant (white label) enviado no cabeçalho X-Tenant. */
   tenant?: string;
+  /** Cor da marca (white label, #RRGGBB): gera a paleta do tema do app. */
+  brandColor?: string;
   /** Tiles do mapa (padrão OpenStreetMap). */
   mapTilesUrl?: string;
   mapAttribution?: string;
@@ -20,6 +22,11 @@ let current: KitConfig | null = null;
 export function configureKit(config: KitConfig): void {
   if (!config.apiUrl) throw new Error('EXPO_PUBLIC_API_URL não configurada.');
   current = { ...config, apiUrl: config.apiUrl.replace(/\/+$/, ''), webUrl: config.webUrl.replace(/\/+$/, '') };
+}
+
+/** Configuração atual, se já definida (uso em estilos calculados antes da primeira requisição). */
+export function kitConfigOrNull(): KitConfig | null {
+  return current;
 }
 
 export function kitConfig(): KitConfig {

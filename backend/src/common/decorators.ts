@@ -1,5 +1,6 @@
-import { createParamDecorator, ExecutionContext, SetMetadata } from '@nestjs/common';
-import type { PermissionKey } from '@levoja/shared';
+import { applyDecorators, createParamDecorator, ExecutionContext, SetMetadata } from '@nestjs/common';
+import { ApiSecurity } from '@nestjs/swagger';
+import type { ApiKeyScope, PermissionKey, PlanFeature } from '@levoja/shared';
 import type { AuthUser } from './auth/auth-user';
 
 export const IS_PUBLIC_KEY = 'isPublic';
@@ -48,7 +49,16 @@ export const Client = createParamDecorator((_data: unknown, ctx: ExecutionContex
 
 export const ALLOW_API_KEY = 'allowApiKey';
 /**
- * Rota que aceita chave de API de empresa (integrações). Sem este decorador, requisições com chave
- * de API são recusadas — a chave nunca age como o usuário que a criou em outras rotas.
+ * Rota da API pública: aceita chave de API de empresa que tenha o escopo informado. Sem este
+ * decorador, requisições com chave de API são recusadas — a chave nunca age como o usuário que a
+ * criou em outras rotas. Também marca a rota na documentação pública (`/docs/public`).
  */
-export const AllowApiKey = () => SetMetadata(ALLOW_API_KEY, true);
+export const AllowApiKey = (scope: ApiKeyScope) => applyDecorators(SetMetadata(ALLOW_API_KEY, scope), ApiSecurity('api-key'));
+
+export const FEATURE_KEY = 'planFeature';
+/**
+ * Recurso do plano SaaS exigido pela rota (parâmetro `companyId`). Só vale quando a cobrança por
+ * planos está ligada (configuração `saas`); a equipe da plataforma não é bloqueada. `null` dispensa
+ * o recurso exigido pela classe (ex.: pagar faturas antigas depois de trocar de plano).
+ */
+export const RequireFeature = (feature: PlanFeature | null) => SetMetadata(FEATURE_KEY, feature);

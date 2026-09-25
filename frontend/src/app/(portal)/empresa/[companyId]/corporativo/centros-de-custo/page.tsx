@@ -4,9 +4,10 @@ import { FormEvent, useState } from 'react';
 import { Plus, Wallet } from 'lucide-react';
 import { formatBRL } from '@levoja/shared';
 import { api, useApi } from '@levoja/web-kit/client';
-import { Badge, Button, Card, DataTable, Dialog, EmptyState, ErrorState, Input, MoneyInput, SkeletonRows, useToast } from '@levoja/web-kit/ui';
+import { Badge, Button, Card, DataTable, Dialog, EmptyState, Input, MoneyInput, SkeletonRows, useToast } from '@levoja/web-kit/ui';
 import type { CostCenter } from '@/components/b2b';
 import { useCompany } from '@/lib/company';
+import { PlanAwareError } from '@/components/plan-gate';
 
 /** Gasto do mês x orçamento (cor indica o nível; o valor vem escrito ao lado). */
 function BudgetBar({ center }: { center: CostCenter }) {
@@ -88,7 +89,7 @@ export default function CostCentersPage() {
     <Card title="Centros de custo" actions={manage && <Button icon={<Plus className="h-4 w-4" />} onClick={() => setEditing('new')}>Novo centro de custo</Button>}>
       <p className="mb-4 text-sm text-muted">Classifique as entregas por área ou projeto. A fatura e o relatório corporativo mostram o gasto de cada centro de custo.</p>
       {isLoading && <SkeletonRows rows={3} />}
-      {error && <ErrorState error={error} onRetry={() => refetch()} />}
+      {error && <PlanAwareError error={error} onRetry={() => refetch()} />}
       {data?.length === 0 && <EmptyState icon={<Wallet className="h-8 w-8" />} title="Nenhum centro de custo" />}
       {data && data.length > 0 && (
         <DataTable

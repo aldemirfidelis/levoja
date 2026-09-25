@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { Menu, X } from 'lucide-react';
-import { cn } from '@levoja/web-kit/ui';
+import { BrandLogo, cn, useBrand } from '@levoja/web-kit/ui';
 
 const NAV = [
   { href: '/como-funciona', label: 'Como funciona' },
@@ -16,9 +16,10 @@ const NAV = [
 ];
 
 export function Logo({ className }: { className?: string }) {
+  const brand = useBrand();
   return (
-    <Link href="/" className={cn('text-2xl font-extrabold tracking-tight text-brand-500', className)} aria-label="LevoJá — página inicial">
-      LevoJá
+    <Link href="/" className={cn('text-2xl font-extrabold tracking-tight text-brand-500', className)} aria-label={`${brand.appName} — página inicial`}>
+      <BrandLogo />
     </Link>
   );
 }
@@ -82,6 +83,7 @@ const FOOTER = [
     title: 'Plataforma',
     links: [
       ['/como-funciona', 'Como funciona'],
+      ['/cidades', 'Onde atendemos'],
       ['/taxas', 'Taxas'],
       ['/seguranca', 'Segurança'],
       ['/solucoes-empresariais', 'Soluções empresariais'],
@@ -136,8 +138,12 @@ export function SiteFooter() {
         ))}
       </div>
       <div className="border-t border-border py-6 text-center text-xs text-muted">
-        © {new Date().getFullYear()} LevoJá. Todos os direitos reservados.
+        © {new Date().getFullYear()} <BrandName />. Todos os direitos reservados.
       </div>
     </footer>
   );
+}
+
+function BrandName() {
+  return <>{useBrand().appName}</>;
 }

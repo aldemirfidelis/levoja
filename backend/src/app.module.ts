@@ -44,6 +44,12 @@ import { OperationsModule } from './modules/operations/operations.module';
 import { BroadcastsModule } from './modules/broadcasts/broadcasts.module';
 import { B2bModule } from './modules/b2b/b2b.module';
 import { IntelligenceModule } from './modules/intelligence/intelligence.module';
+import { SaasModule } from './modules/saas/saas.module';
+import { CitiesModule } from './modules/cities/cities.module';
+import { TenantsAdminModule } from './modules/tenants/tenants-admin.module';
+import { CompanyBrandModule } from './modules/tenants/company-brand.module';
+import { PublicApiModule } from './modules/public-api/public-api.module';
+import { PlanFeatureGuard } from './modules/saas/plan-feature.guard';
 
 const env = loadEnv();
 
@@ -113,6 +119,11 @@ const env = loadEnv();
     BroadcastsModule,
     B2bModule,
     IntelligenceModule,
+    SaasModule,
+    CitiesModule,
+    TenantsAdminModule,
+    CompanyBrandModule,
+    PublicApiModule,
   ],
   controllers: [ObservabilityController, PublicFilesController],
   providers: [
@@ -121,6 +132,7 @@ const env = loadEnv();
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_GUARD, useClass: CompanyAccessGuard },
+    { provide: APP_GUARD, useClass: PlanFeatureGuard },
     { provide: APP_INTERCEPTOR, useClass: MetricsInterceptor },
   ],
 })

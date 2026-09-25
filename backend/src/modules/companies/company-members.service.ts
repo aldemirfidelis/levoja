@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ROLE_KEYS } from '@levoja/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { SubscriptionsService } from '../saas/subscriptions.service';
 import { AuditService } from '../audit/audit.service';
 import { AccessService } from '../access/access.service';
 import { UsersService } from '../users/users.service';
@@ -16,6 +17,7 @@ export class CompanyMembersService {
     private readonly access: AccessService,
     private readonly users: UsersService,
     private readonly invitations: InvitationsService,
+    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   async list(companyId: string) {
@@ -43,6 +45,7 @@ export class CompanyMembersService {
     const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { tenantId: true, tradeName: true } });
     if (!company) throw new NotFoundException('Empresa não encontrada.');
     const role = await this.companyRole(company.tenantId, dto.roleKey);
+    await this.subscriptions.assertLimit(company.tenantId, companyId, 'maxUsers', await this.prisma.companyUser.count({ where: { companyId, isActive: true } }));
     const email = this.users.normalizeEmail(dto.email);
 
     let user = await this.prisma.user.findUnique({ where: { tenantId_email: { tenantId: company.tenantId, email } } });

@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { CompanyPermission, CurrentUser, RequirePermissions } from '../../common/decorators';
+import { CompanyPermission, CurrentUser, RequireFeature, RequirePermissions } from '../../common/decorators';
 import type { AuthUser } from '../../common/auth/auth-user';
 import { AiService } from './ai/ai.service';
 import { AnomalyService } from './anomaly.service';
@@ -249,6 +249,7 @@ export class IntelligenceController {
 
 @ApiTags('Empresas • Assistente')
 @ApiBearerAuth()
+@RequireFeature('bi')
 @Controller('companies/:companyId/assistant')
 export class CompanyAssistantController {
   constructor(private readonly assistant: CompanyAssistantService) {}

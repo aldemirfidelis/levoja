@@ -4,12 +4,13 @@ Plataforma de **marketplace + delivery + logística sob demanda + SaaS B2B**. Co
 (restaurantes, farmácias, mercados, lojas...) e entregadores, e também atende entregas avulsas
 (pessoa → pessoa, empresa → cliente) e corporativas.
 
-> Status: **Fases 1 a 8 concluídas** — fundação (API, autenticação, RBAC, LGPD, auditoria), marketplace,
+> Status: **Fases 1 a 9 concluídas** — fundação (API, autenticação, RBAC, LGPD, auditoria), marketplace,
 > logística, financeiro, os aplicativos Android/iOS do cliente e do entregador, a operação (torre de
 > controle, mapa de calor, relatórios, atendimento, chat e comunicados), o corporativo (contratos, tabelas
-> especiais, lotes por planilha/API com rotas, recorrências, centros de custo e faturamento mensal) e a
-> inteligência (antifraude com score e revisão humana, previsão de demanda e de entregadores, tempo de
-> entrega calibrado, anomalias, preço dinâmico com aprovação e IA assistiva).
+> especiais, lotes por planilha/API com rotas, recorrências, centros de custo e faturamento mensal), a
+> inteligência (antifraude com score e revisão humana, previsões, tempo de entrega calibrado, anomalias,
+> preço dinâmico com aprovação e IA assistiva) e a escala (multi-cidade, tenants white label, planos SaaS
+> e API pública com webhooks).
 > Veja o [roadmap](docs/roadmap.md).
 
 ## Estrutura
@@ -36,6 +37,9 @@ scripts/          Utilitários (PostgreSQL embutido para desenvolvimento sem Doc
   - Sem Docker: `pnpm db:embedded` (PostgreSQL embutido, mantém o terminal aberto)
 
 > O banco de desenvolvimento usa a porta **5433** para não conflitar com um PostgreSQL já instalado na 5432.
+> O banco precisa estar em **UTF-8** (`CREATE DATABASE ... ENCODING 'UTF8' TEMPLATE template0`). O `pnpm db:embedded`
+> já cria assim; clusters antigos criados no Windows em WIN1252 recusam emoji e símbolos — a API e o script avisam
+> na inicialização.
 
 ## Primeiros passos
 
@@ -99,12 +103,13 @@ pnpm --filter @levoja/mobile-client export:android   # bundle Android (Metro/Her
 ```
 
 Os testes E2E aplicam as migrations no banco `levoja_test` e usam identidades únicas por execução —
-podem ser repetidos sem limpar o banco. Cobrem as fases 1 a 8 (fundação, marketplace, logística,
+podem ser repetidos sem limpar o banco. Cobrem as fases 1 a 9 (fundação, marketplace, logística,
 financeiro, os contratos usados pelos apps, a operação — chat com privacidade, chamados e SLA, torre de
 controle, mapa de calor, relatórios/CSV, painéis, comunicados com consentimento e LGPD —, o corporativo:
 contratos, limites, lotes com rotas, recorrências, faturas e chaves de API — e a inteligência: antifraude,
 previsão, sugestões de preço, anomalias, calibração do tempo de entrega, avaliações e IA assistiva com um
-provedor simulado; os testes nunca chamam um provedor de IA real).
+provedor simulado; os testes nunca chamam um provedor de IA real — e a escala: tenants, cidades, planos e
+cobrança, API pública com limites e webhooks recebidos por um servidor local, e marca própria).
 
 ### Pagamentos em desenvolvimento (sandbox)
 
@@ -156,6 +161,26 @@ Em produção, `sandbox` é recusado na inicialização; use `PAYMENT_GATEWAY=no
   rascunhos por modelo de texto, avaliações pelo léxico e o assistente das lojas só com indicadores.
   Com `AI_PROVIDER=anthropic` e `ANTHROPIC_API_KEY`, usa o Claude (`AI_MODEL`, padrão `claude-opus-5`)
   com fallback no servidor em caso de recusa. Recursos e limite diário na configuração `ai`.
+
+### Escala: cidades, planos, white label e API pública
+
+- **Cidades** (painel → Cidades): cidade *em preparação* ou *pausada* recusa novos pedidos e entregas com a
+  mensagem cadastrada; sem cadastro, a cidade é atendida (a configuração `cities` pode exigir cadastro).
+  Ativar uma cidade avisa por e-mail quem entrou na lista de espera (`/cidades` no portal).
+- **Planos** (painel → Planos SaaS): a cobrança por planos vem **desligada** (todas as empresas com todos os
+  recursos). Ao ligar (configuração `saas`), recursos e limites seguem o plano de cada empresa; a mensalidade
+  é lançada na carteira da empresa e o saldo negativo é quitado por PIX no financeiro.
+- **Tenants** (painel → Tenants, permissão `tenants.manage`): cada tenant é uma operação com marca, domínios,
+  regras e usuários próprios. Rode um portal/painel por tenant com `TENANT_SLUG`; a marca (nome, cor, logotipo,
+  contatos) vem de `GET /v1/tenant` e é editada em **Marca**. Apps por marca: `APP_DISPLAY_NAME`, `APP_SLUG`,
+  `APP_SCHEME`, `IOS_BUNDLE_ID`, `ANDROID_PACKAGE`, `APP_BRAND_COLOR`, `APP_ASSETS_DIR`, `EXPO_PUBLIC_TENANT` e
+  `EXPO_PUBLIC_BRAND_COLOR` no build EAS.
+- **Marca própria da empresa** (plano com `white_label`): cor e domínio da página da loja. O domínio aponta
+  (CNAME) para o portal; `PLATFORM_HOSTS` lista os endereços do próprio portal — outros domínios na raiz exibem
+  a loja correspondente.
+- **API pública** (portal → Integrações): chaves com escopos, webhooks assinados e uso das chamadas.
+  Documentação em `/docs/public` (sempre publicada). Em desenvolvimento, `WEBHOOK_ALLOW_PRIVATE_URLS=true`
+  permite webhooks para `localhost`; em produção só HTTPS e IP público.
 
 ## Principais decisões
 

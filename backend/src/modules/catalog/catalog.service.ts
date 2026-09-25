@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { PrismaService, Tx } from '../../infra/prisma/prisma.service';
+import { SubscriptionsService } from '../saas/subscriptions.service';
 import { StorageService } from '../../infra/storage/storage.service';
 import { UploadedFileLike, validateUpload } from '../../infra/storage/file-validation';
 import { AuditService, diff } from '../audit/audit.service';
@@ -46,6 +47,7 @@ export class CatalogService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly audit: AuditService,
+    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -131,6 +133,7 @@ export class CatalogService {
   }
 
   async createProduct(company: { id: string; tenantId: string }, dto: ProductDto) {
+    await this.subscriptions.assertLimit(company.tenantId, company.id, 'maxProducts', await this.prisma.product.count({ where: { companyId: company.id, deletedAt: null } }));
     await this.validateProduct(company.id, dto);
     const product = await this.prisma.$transaction(async (tx) => {
       const { optionGroups, comboItems, promoStartsAt, promoEndsAt, ...data } = dto;

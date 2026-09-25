@@ -55,6 +55,23 @@ export class CacheService {
     for (const key of this.memory.keys()) if (key.startsWith(prefix)) this.memory.delete(key);
   }
 
+  /**
+   * Contador atômico com expiração (ex.: limite de chamadas por minuto). A expiração é definida
+   * na primeira incrementação da janela. Com várias instâncias, só é global com Redis.
+   */
+  async increment(key: string, ttlSeconds: number): Promise<number> {
+    if (this.redis) {
+      const full = this.prefix + key;
+      const [[, count]] = (await this.redis.multi().incr(full).expire(full, ttlSeconds, 'NX').exec()) as [[Error | null, number]];
+      return count;
+    }
+    const current = this.memoryGet(key);
+    const next = (current ? Number(JSON.parse(current)) : 0) + 1;
+    const entry = this.memory.get(key);
+    this.memory.set(key, { value: JSON.stringify(next), expiresAt: entry && current ? entry.expiresAt : Date.now() + ttlSeconds * 1000 });
+    return next;
+  }
+
   async wrap<T>(key: string, ttlSeconds: number, factory: () => Promise<T>): Promise<T> {
     const cached = await this.get<T>(key);
     if (cached !== undefined) return cached;

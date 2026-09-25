@@ -28,6 +28,7 @@ import {
   SkeletonRows,
   SupportCenter,
   useToast,
+  useBrand,
 } from '@levoja/web-kit/ui';
 import { BankAccountForm, BankAccountView, Checklist, DocumentsManager, PartnerDoc, Requirement } from '@/components/partner-forms';
 import { maskCpf } from '@/components/signup-fields';
@@ -183,6 +184,7 @@ function VehicleData({ vehicle, onSaved }: { vehicle: Vehicle; onSaved: () => vo
 }
 
 export default function DriverOnboardingPage() {
+  const brandName = useBrand().appName;
   const toast = useToast();
   const { data: driver, error, isLoading, refetch } = useApi<DriverView>('drivers/me', undefined, { retry: false });
   const [busy, setBusy] = useState(false);
@@ -250,7 +252,7 @@ export default function DriverOnboardingPage() {
             {driver.status === 'APPROVED' && (
               <>
                 <p className="mt-3 flex items-center gap-2 text-sm text-muted">
-                  <Smartphone className="h-4 w-4" aria-hidden /> Use o app LevoJá Entregador para ficar online, receber ofertas e fazer as entregas.
+                  <Smartphone className="h-4 w-4" aria-hidden /> Use o app {brandName} Entregador para ficar online, receber ofertas e fazer as entregas.
                 </p>
                 <Link href="/entregador/ganhos" className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-brand-600 hover:underline">
                   <Wallet className="h-4 w-4" aria-hidden /> Ganhos, saques e chave PIX

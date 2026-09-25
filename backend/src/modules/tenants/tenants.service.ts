@@ -58,6 +58,48 @@ export class TenantsService {
   async invalidate(): Promise<void> {
     await this.cache.delByPrefix('tenant:');
   }
+
+  /**
+   * Nome, marca e endereços públicos do tenant (white label): usados em e-mails, links e na
+   * identidade visual dos portais. Sem configuração própria, valem os padrões do ambiente.
+   */
+  async info(tenantId: string): Promise<TenantPublicInfo> {
+    return this.cache.wrap(`tenant:info:${tenantId}`, TTL, async () => {
+      const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { id: true, slug: true, name: true, status: true, branding: true, domains: true } });
+      if (!tenant) throw new NotFoundException('Tenant não encontrado.');
+      const branding = (tenant.branding ?? {}) as Record<string, unknown>;
+      const text = (key: string) => (typeof branding[key] === 'string' && (branding[key] as string).trim() ? (branding[key] as string).trim() : null);
+      return {
+        id: tenant.id,
+        slug: tenant.slug,
+        name: tenant.name,
+        status: tenant.status,
+        domains: tenant.domains,
+        appName: text('appName') ?? tenant.name,
+        logoUrl: text('logoUrl'),
+        primaryColor: text('primaryColor') ?? '#FF5A1F',
+        supportEmail: text('supportEmail'),
+        supportPhone: text('supportPhone'),
+        webUrl: (text('webUrl') ?? this.config.env.WEB_PUBLIC_URL).replace(/\/+$/, ''),
+        adminUrl: (text('adminUrl') ?? this.config.env.ADMIN_PUBLIC_URL).replace(/\/+$/, ''),
+      };
+    });
+  }
+}
+
+export interface TenantPublicInfo {
+  id: string;
+  slug: string;
+  name: string;
+  status: 'ACTIVE' | 'SUSPENDED';
+  domains: string[];
+  appName: string;
+  logoUrl: string | null;
+  primaryColor: string;
+  supportEmail: string | null;
+  supportPhone: string | null;
+  webUrl: string;
+  adminUrl: string;
 }
 
 const SELECT = { id: true, slug: true, name: true, status: true, branding: true } as const;

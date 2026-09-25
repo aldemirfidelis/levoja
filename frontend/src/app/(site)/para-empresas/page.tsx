@@ -1,10 +1,22 @@
 import type { Metadata } from 'next';
-import { BarChart3, Boxes, Clock, FileCheck2, Truck, Users } from 'lucide-react';
+import { BarChart3, Boxes, Check, Clock, FileCheck2, Truck, Users } from 'lucide-react';
+import { formatBRL, PLAN_FEATURE_LABELS, type PlanFeature } from '@levoja/shared';
+import { publicApi } from '@/lib/bff';
 import { CtaLink, FeatureGrid, PageHero, Section, SectionTitle, Steps } from '@/components/marketing';
 
 export const metadata: Metadata = { title: 'Para empresas' };
 
-export default function ForCompaniesPage() {
+interface PublicPlan {
+  key: string;
+  name: string;
+  description: string | null;
+  priceCents: number;
+  features: PlanFeature[];
+  trialDays: number;
+}
+
+export default async function ForCompaniesPage() {
+  const plans = (await publicApi<PublicPlan[]>('plans', 300)) ?? [];
   return (
     <>
       <PageHero
@@ -27,6 +39,31 @@ export default function ForCompaniesPage() {
           ]}
         />
       </Section>
+      {plans.length > 0 && (
+        <Section>
+          <SectionTitle title="Planos" description="Comece grátis e mude de plano quando precisar. A mensalidade é descontada das suas vendas." center />
+          <div className="mx-auto grid max-w-5xl gap-4 md:grid-cols-3">
+            {plans.map((plan) => (
+              <div key={plan.key} className="flex flex-col rounded-xl border border-border bg-surface p-6">
+                <h3 className="text-lg font-bold text-fg">{plan.name}</h3>
+                <p className="mt-1 text-3xl font-extrabold text-fg">
+                  {plan.priceCents ? formatBRL(plan.priceCents) : 'Grátis'}
+                  {plan.priceCents > 0 && <span className="text-base font-normal text-muted">/mês</span>}
+                </p>
+                {plan.trialDays > 0 && plan.priceCents > 0 && <p className="text-sm text-muted">{plan.trialDays} dias grátis para experimentar</p>}
+                {plan.description && <p className="mt-2 text-sm text-muted">{plan.description}</p>}
+                <ul className="mt-4 flex-1 space-y-2 text-sm">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex gap-2 text-fg">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden /> {PLAN_FEATURE_LABELS[feature] ?? feature}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
       <Section muted>
         <SectionTitle title="Ferramentas do portal da empresa" />
         <FeatureGrid

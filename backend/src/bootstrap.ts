@@ -82,4 +82,46 @@ export function configureApp(app: INestApplication): void {
     );
     SwaggerModule.setup('docs', app, document, { jsonDocumentUrl: 'docs/openapi.json', customSiteTitle: 'LevoJá API' });
   }
+
+  // Documentação da API pública (integrações das empresas com chave de API): sempre publicada.
+  SwaggerModule.setup('docs/public', app, publicApiDocument(app, config), { jsonDocumentUrl: 'docs/public.json', customSiteTitle: `${config.env.APP_NAME} — API pública` });
+}
+
+const PUBLIC_API_GUIDE = [
+  'API para integrar sistemas das empresas (ERP, e-commerce, PDV) à plataforma.',
+  '',
+  '**Autenticação:** cabeçalho `X-Api-Key: ljk_...` (chave criada no portal da empresa, em Integração). Cada rota exige um escopo',
+  '(`catalog:read`, `catalog:write`, `orders:read`, `orders:write`, `deliveries:read`, `deliveries:write`) e o recurso correspondente no plano.',
+  '',
+  '**Limites:** chamadas por minuto conforme o plano. As respostas trazem `X-RateLimit-Limit`, `X-RateLimit-Remaining` e `X-RateLimit-Reset`; acima do limite, `429`.',
+  '',
+  '**Webhooks:** cadastre endpoints HTTPS no portal e escolha os eventos (`order.created`, `order.status_changed`, `delivery.created`,',
+  '`delivery.status_changed`, `invoice.issued`, `subscription.invoice_created`). Cada envio traz `X-LevoJa-Event`, `X-LevoJa-Delivery` e',
+  '`X-LevoJa-Signature: t=<unix>,v1=<hex>` — HMAC-SHA256 com o segredo do endpoint sobre `<t>.<corpo bruto>`. Rejeite assinaturas com mais de',
+  '5 minutos e use o `id` do evento para ignorar repetições. Respostas fora de 2xx geram novas tentativas (1 min, 5 min, 30 min, 2 h, 6 h, 12 h).',
+  '',
+  '**Formatos:** valores em centavos (inteiros), datas em ISO 8601 (UTC), erros como `{ statusCode, error, message, details?, requestId }`.',
+].join('\n');
+
+/** Recorte da especificação com as rotas que aceitam chave de API (marcadas por @AllowApiKey). */
+function publicApiDocument(app: INestApplication, config: AppConfig) {
+  const full = SwaggerModule.createDocument(
+    app,
+    new DocumentBuilder()
+      .setTitle(`${config.env.APP_NAME} — API pública`)
+      .setDescription(PUBLIC_API_GUIDE)
+      .setVersion('1.0')
+      .addServer(`${config.env.API_PUBLIC_URL.replace(/\/+$/, '')}`)
+      .addApiKey({ type: 'apiKey', name: 'X-Api-Key', in: 'header' }, 'api-key')
+      .build(),
+  );
+  const paths: typeof full.paths = {};
+  for (const [path, item] of Object.entries(full.paths)) {
+    const kept = Object.fromEntries(
+      Object.entries(item).filter(([, operation]) => typeof operation === 'object' && operation && Array.isArray((operation as { security?: unknown[] }).security) && (operation as { security: Record<string, unknown>[] }).security.some((entry) => 'api-key' in entry)),
+    );
+    if (Object.keys(kept).length) paths[path] = kept;
+  }
+  const tags = new Set(Object.values(paths).flatMap((item) => Object.values(item).flatMap((operation) => (operation as { tags?: string[] }).tags ?? [])));
+  return { ...full, paths, tags: (full.tags ?? []).filter((tag) => tags.has(tag.name)) };
 }

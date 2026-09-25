@@ -8,5 +8,6 @@ export * from './masks';
 export * from './support';
 export * from './b2b';
 export * from './intelligence';
+export * from './saas';
 
 export const PLATFORM_NAME = 'LevoJá';

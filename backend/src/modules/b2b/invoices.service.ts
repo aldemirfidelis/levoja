@@ -3,6 +3,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { Cron } from '@nestjs/schedule';
 import { formatBRL } from '@levoja/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuditService } from '../audit/audit.service';
 import { SettingsService } from '../settings/settings.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -24,6 +25,17 @@ const DAY_MS = 86_400_000;
  * concluídas (entregues = taxa + gorjeta; não realizadas = taxa), aplica a franquia mínima, emite a
  * fatura com vencimento e acompanha pagamento (PIX ou baixa manual), atraso e cancelamento.
  */
+/** Fatura corporativa emitida (webhooks). */
+export const B2B_INVOICE_ISSUED = 'b2b.invoice.issued';
+export interface B2bInvoiceIssuedEvent {
+  tenantId: string;
+  companyId: string;
+  invoiceId: string;
+  number: number;
+  totalCents: number;
+  dueAt: Date;
+}
+
 @Injectable()
 export class InvoicesService implements OnModuleInit {
   private readonly logger = new Logger(InvoicesService.name);
@@ -36,6 +48,7 @@ export class InvoicesService implements OnModuleInit {
     private readonly ledger: LedgerService,
     private readonly payments: PaymentsService,
     private readonly contracts: ContractsService,
+    private readonly events: EventEmitter2,
   ) {}
 
   onModuleInit(): void {
@@ -159,6 +172,7 @@ export class InvoicesService implements OnModuleInit {
       { timeout: 120_000 },
     );
     if (result) {
+      this.events.emit(B2B_INVOICE_ISSUED, { tenantId: result.tenantId, companyId: result.companyId, invoiceId: result.id, number: result.number, totalCents: result.totalCents, dueAt: result.dueAt } satisfies B2bInvoiceIssuedEvent);
       await this.notifyCompany(result.companyId, `Fatura #${result.number} emitida`, `Total ${formatBRL(result.totalCents)} (${result.deliveriesCount} entrega(s)), vencimento em ${result.dueAt.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.`, result.id);
     }
     return result;

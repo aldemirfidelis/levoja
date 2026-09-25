@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException, UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException, UnauthorizedException, UnprocessableEntityException } from '@nestjs/common';
 import { randomInt } from 'node:crypto';
 import { API_KEY_SCOPES, type ApiKeyScope } from '@levoja/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
@@ -8,6 +8,8 @@ import { AccessService } from '../access/access.service';
 import { MapsService } from '../geo/maps.service';
 import { toAuthUser, type AuthUser } from '../../common/auth/auth-user';
 import { ContractsService } from './contracts.service';
+import { SubscriptionsService } from '../saas/subscriptions.service';
+import { CacheService } from '../../infra/cache/cache.service';
 
 export interface CostCenterInput {
   code: string;
@@ -46,6 +48,8 @@ export class CompanyB2bService {
     private readonly access: AccessService,
     private readonly maps: MapsService,
     private readonly contracts: ContractsService,
+    private readonly subscriptions: SubscriptionsService,
+    private readonly cache: CacheService,
   ) {}
 
   private async tenantOf(companyId: string): Promise<string> {
@@ -111,6 +115,7 @@ export class CompanyB2bService {
 
   async createLocation(user: AuthUser, companyId: string, input: LocationInput) {
     const tenantId = await this.tenantOf(companyId);
+    await this.subscriptions.assertLimit(tenantId, companyId, 'maxLocations', await this.prisma.companyLocation.count({ where: { companyId, isActive: true } }));
     const point = await this.locate(input);
     const location = await this.prisma.companyLocation.create({
       data: {
@@ -201,8 +206,10 @@ export class CompanyB2bService {
       if (!definition) throw new BadRequestException(`Escopo inválido: ${scope}.`);
       if (!user.canInCompany(companyId, definition.permission)) throw new ForbiddenException(`Você não tem a permissão exigida pelo escopo "${definition.label}".`);
     }
-    const active = await this.prisma.companyApiKey.count({ where: { companyId, revokedAt: null } });
-    if (active >= 10) throw new ConflictException('Limite de 10 chaves ativas. Revogue as que não usa mais.');
+    for (const scope of scopes) await this.subscriptions.assertFeature(tenantId, companyId, API_KEY_SCOPES[scope].feature);
+    const active = await this.prisma.companyApiKey.count({ where: { companyId, revokedAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } });
+    await this.subscriptions.assertLimit(tenantId, companyId, 'maxApiKeys', active);
+    if (active >= 20) throw new ConflictException('Limite de 20 chaves ativas. Revogue as que não usa mais.');
     const secret = Array.from({ length: 40 }, () => KEY_ALPHABET[randomInt(KEY_ALPHABET.length)]).join('');
     const key = `ljk_${secret}`;
     const record = await this.prisma.companyApiKey.create({
@@ -225,6 +232,41 @@ export class CompanyB2bService {
     const updated = await this.prisma.companyApiKey.updateMany({ where: { id, companyId, revokedAt: null }, data: { revokedAt: new Date() } });
     if (!updated.count) throw new NotFoundException('Chave não encontrada ou já revogada.');
     await this.audit.log({ action: 'b2b.api_key.revoke', entityType: 'CompanyApiKey', entityId: id });
+  }
+
+  /**
+   * Autoriza uma chamada da API pública: chave válida, com o escopo exigido pela rota, recurso do
+   * plano da empresa e limite de chamadas por minuto do plano (janela fixa de 60 s por chave).
+   */
+  async authorize(rawKey: string, scope: ApiKeyScope, onIdentified?: (user: AuthUser) => void): Promise<{ user: AuthUser; rate: { limit: number; remaining: number; resetSeconds: number } | null }> {
+    const user = await this.authenticate(rawKey);
+    onIdentified?.(user);
+    const key = await this.prisma.companyApiKey.findUniqueOrThrow({ where: { id: user.apiKeyId! }, select: { id: true, scopes: true, companyId: true, tenantId: true } });
+    if (!key.scopes.includes(scope)) throw new ForbiddenException(`Esta chave não tem o escopo "${scope}" (${API_KEY_SCOPES[scope].label.toLowerCase()}).`);
+    await this.subscriptions.assertFeature(key.tenantId, key.companyId, API_KEY_SCOPES[scope].feature);
+    const { limits } = await this.subscriptions.effective(key.tenantId, key.companyId);
+    const limit = limits.apiRequestsPerMinute;
+    if (limit == null) return { user, rate: null };
+    const window = Math.floor(Date.now() / 60_000);
+    const used = await this.cache.increment(`apirate:${key.id}:${window}`, 70);
+    const resetSeconds = 60 - Math.floor((Date.now() / 1000) % 60);
+    if (used > limit) {
+      throw new HttpException({ message: `Limite de ${limit} chamadas por minuto do plano atingido. Tente novamente em ${resetSeconds} s.`, details: { limit, resetSeconds } }, HttpStatus.TOO_MANY_REQUESTS);
+    }
+    return { user, rate: { limit, remaining: Math.max(0, limit - used), resetSeconds } };
+  }
+
+  /** Registra a chamada feita com a chave (inclusive recusas por escopo, plano ou limite) quando a resposta termina. */
+  trackUsage(request: { method: string; originalUrl?: string; url: string; route?: { path?: string } }, response: { statusCode: number; once(event: 'finish', listener: () => void): unknown }, user: AuthUser) {
+    const companyId = user.companies[0]?.companyId;
+    if (!companyId || !user.apiKeyId) return;
+    const started = Date.now();
+    response.once('finish', () => {
+      const path = request.route?.path ?? String(request.originalUrl ?? request.url).split('?')[0];
+      void this.prisma.apiRequestLog
+        .create({ data: { tenantId: user.tenantId, companyId, apiKeyId: user.apiKeyId!, method: request.method, path: path.slice(0, 200), status: response.statusCode, durationMs: Date.now() - started } })
+        .catch(() => undefined);
+    });
   }
 
   /**

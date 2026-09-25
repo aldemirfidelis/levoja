@@ -534,6 +534,9 @@ model Company {
   fulfillmentMode         FulfillmentMode @default(PLATFORM)
   ratingAvg               Float           @default(0)
   ratingCount             Int             @default(0)
+  /// Marca própria (white label, plano Enterprise): cor principal e domínio da página da loja.
+  brandColor              String?
+  customDomain            String?         @unique
   createdAt               DateTime        @default(now())
   updatedAt               DateTime        @updatedAt
 
@@ -560,6 +563,8 @@ model Company {
   batches       DeliveryBatch[]
   recurrences   RecurringDelivery[]
   invoices      Invoice[]
+  subscription  CompanySubscription?
+  webhooks      WebhookEndpoint[]
 
   @@unique([tenantId, cnpj])
   @@unique([tenantId, slug])
@@ -1684,6 +1689,8 @@ enum LedgerEntryType {
   WITHDRAWAL
   WITHDRAWAL_REVERSAL
   PAYMENT
+  /// Mensalidade do plano SaaS da empresa (Fase 9)
+  SUBSCRIPTION
 }
 
 enum LedgerEntryStatus {
@@ -2866,4 +2873,234 @@ model AiInteraction {
   @@index([tenantId, feature, createdAt])
   @@index([userId, createdAt])
   @@map("ai_interactions")
+}
+
+// =============================================================================
+// FASE 9 — ESCALA (multi-cidade, planos SaaS, white label e API pública)
+// =============================================================================
+
+enum CityStatus {
+  /// Cadastrada, ainda sem operação (lista de espera aberta).
+  PREPARING
+  ACTIVE
+  /// Operação suspensa temporariamente (novos pedidos e entregas recusados).
+  PAUSED
+}
+
+/// Cidade em que o tenant opera (ou vai operar). A chave é "cidade/uf" normalizada.
+model City {
+  id         String     @id @default(uuid(7)) @db.Uuid
+  tenantId   String     @db.Uuid
+  key        String
+  name       String
+  state      String
+  status     CityStatus @default(PREPARING)
+  timeZone   String     @default("America/Sao_Paulo")
+  centerLat  Float?
+  centerLng  Float?
+  /// Mensagem mostrada a quem tenta usar a plataforma na cidade sem operação.
+  message    String?
+  launchedAt DateTime?
+  pausedAt   DateTime?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  waitlist CityWaitlist[]
+
+  @@unique([tenantId, key])
+  @@index([tenantId, status])
+  @@map("cities")
+}
+
+/// "Avise-me quando chegar": interessados em uma cidade ainda sem operação.
+model CityWaitlist {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  tenantId   String    @db.Uuid
+  cityId     String    @db.Uuid
+  userId     String?   @db.Uuid
+  name       String?
+  email      String
+  /// CUSTOMER | COMPANY | DRIVER
+  profile    String
+  notifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  city City @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@unique([cityId, email])
+  @@index([tenantId, createdAt])
+  @@map("city_waitlist")
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum SubscriptionInvoiceStatus {
+  OPEN
+  PAID
+  VOID
+}
+
+/// Plano SaaS para empresas (configurável no painel): preço mensal, recursos e limites.
+model Plan {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  tenantId    String   @db.Uuid
+  key         String
+  name        String
+  description String?
+  priceCents  Int
+  /// Recursos liberados (PLAN_FEATURES).
+  features    String[]
+  /// Limites: { maxProducts, maxUsers, maxApiKeys, maxLocations, apiRequestsPerMinute } (null = sem limite)
+  limits      Json
+  trialDays   Int      @default(0)
+  /// Exibido para contratação pelas empresas.
+  isPublic    Boolean  @default(true)
+  isActive    Boolean  @default(true)
+  /// Plano de quem não tem assinatura (e de assinaturas em atraso após a carência).
+  isDefault   Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subscriptions CompanySubscription[]
+
+  @@unique([tenantId, key])
+  @@index([tenantId, isActive, sortOrder])
+  @@map("plans")
+}
+
+/// Assinatura da empresa (uma por empresa). Cobrança mensal lançada na carteira da empresa.
+model CompanySubscription {
+  id                 String             @id @default(uuid(7)) @db.Uuid
+  tenantId           String             @db.Uuid
+  companyId          String             @unique @db.Uuid
+  planId             String             @db.Uuid
+  status             SubscriptionStatus
+  /// Preço do período atual (mudanças de preço do plano valem a partir do próximo período).
+  priceCents         Int
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  trialEndsAt        DateTime?
+  cancelAtPeriodEnd  Boolean            @default(false)
+  /// Troca para plano menor agendada para o fim do período.
+  scheduledPlanId    String?            @db.Uuid
+  pastDueSince       DateTime?
+  canceledAt         DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  company  Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan     Plan                  @relation(fields: [planId], references: [id])
+  invoices SubscriptionInvoice[]
+
+  @@index([tenantId, status])
+  @@index([status, currentPeriodEnd])
+  @@map("company_subscriptions")
+}
+
+/// Cobrança da assinatura: período cheio ou diferença proporcional de um upgrade.
+model SubscriptionInvoice {
+  id             String                    @id @default(uuid(7)) @db.Uuid
+  tenantId       String                    @db.Uuid
+  subscriptionId String                    @db.Uuid
+  companyId      String                    @db.Uuid
+  planId         String                    @db.Uuid
+  number         Int
+  description    String
+  periodStart    DateTime
+  periodEnd      DateTime
+  amountCents    Int
+  status         SubscriptionInvoiceStatus @default(OPEN)
+  paidAt         DateTime?
+  voidedAt       DateTime?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  subscription CompanySubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, periodStart])
+  @@unique([tenantId, number])
+  @@index([companyId, createdAt])
+  @@index([status, createdAt])
+  @@map("subscription_invoices")
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+/// Endpoint de webhook da empresa (API pública): eventos assinados com HMAC.
+model WebhookEndpoint {
+  id                  String    @id @default(uuid(7)) @db.Uuid
+  tenantId            String    @db.Uuid
+  companyId           String    @db.Uuid
+  url                 String
+  description         String?
+  /// Segredo de assinatura (cifrado).
+  secretEncrypted     String
+  events              String[]
+  isActive            Boolean   @default(true)
+  consecutiveFailures Int       @default(0)
+  lastSuccessAt       DateTime?
+  lastFailureAt       DateTime?
+  disabledAt          DateTime?
+  disabledReason      String?
+  createdById         String    @db.Uuid
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  company    Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([companyId])
+  @@map("webhook_endpoints")
+}
+
+/// Tentativa de entrega de um evento (com novas tentativas e histórico para diagnóstico).
+model WebhookDelivery {
+  id             String                @id @default(uuid(7)) @db.Uuid
+  endpointId     String                @db.Uuid
+  event          String
+  /// Id do evento (o destinatário usa para ignorar duplicados).
+  eventId        String                @db.Uuid
+  payload        Json
+  status         WebhookDeliveryStatus @default(PENDING)
+  attempts       Int                   @default(0)
+  nextAttemptAt  DateTime?
+  responseStatus Int?
+  responseBody   String?
+  error          String?
+  durationMs     Int?
+  deliveredAt    DateTime?
+  createdAt      DateTime              @default(now())
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId, createdAt])
+  @@index([status, nextAttemptAt])
+  @@map("webhook_deliveries")
+}
+
+/// Chamadas à API pública (chave de API): uso, diagnóstico e limites por minuto.
+model ApiRequestLog {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  tenantId   String   @db.Uuid
+  companyId  String   @db.Uuid
+  apiKeyId   String   @db.Uuid
+  method     String
+  path       String
+  status     Int
+  durationMs Int
+  createdAt  DateTime @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([apiKeyId, createdAt])
+  @@map("api_request_logs")
 }

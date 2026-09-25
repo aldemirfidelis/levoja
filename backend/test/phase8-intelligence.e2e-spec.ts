@@ -418,7 +418,9 @@ describe('Fase 8 — Inteligência (E2E)', () => {
   it('tempo de entrega calibrado pelo histórico da cidade (fator de trajeto, esperas e erro médio)', async () => {
     const etaCity = `Calibracao ${Date.now()}`;
     const key = cityKey(etaCity, 'SP');
-    const pickedUp = new Date(Date.now() - 2 * 86_400_000);
+    // 15h em São Paulo (18h UTC) de dois dias atrás: as 25 entregas ficam na mesma faixa horária (14h–18h).
+    const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000);
+    const pickedUp = new Date(Date.UTC(twoDaysAgo.getUTCFullYear(), twoDaysAgo.getUTCMonth(), twoDaysAgo.getUTCDate(), 18, 0));
     const rows = Array.from({ length: 25 }, (_, index) => {
       const start = new Date(pickedUp.getTime() + index * 60_000);
       return syntheticDelivery(etaCity, { lat: -3, lng: -50 }, new Date(start.getTime() - 15 * 60_000), {

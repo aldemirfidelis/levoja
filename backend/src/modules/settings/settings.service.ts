@@ -255,6 +255,26 @@ export const SETTINGS = {
     }),
     default: { supportDrafts: true, companyAssistant: true, reviewAnalysis: true, dailyLimitPerUser: 50 },
   },
+  saas: {
+    description: 'Planos SaaS: cobrança e recursos por plano (desligado = todas as empresas com todos os recursos), carência de atraso',
+    schema: z.object({
+      /** Liga a exigência de plano: recursos e limites passam a seguir a assinatura de cada empresa. */
+      enabled: z.boolean(),
+      /** Dias com cobrança em aberto antes de a assinatura ficar em atraso. */
+      graceDays: z.number().int().min(0).max(60),
+      /** Dias em atraso antes de os recursos voltarem aos do plano padrão. */
+      restrictAfterDays: z.number().int().min(0).max(90),
+    }),
+    default: { enabled: false, graceDays: 7, restrictAfterDays: 7 },
+  },
+  cities: {
+    description: 'Multi-cidade: exigir cidade cadastrada e em operação para novos pedidos e entregas',
+    schema: z.object({
+      /** true = só cidades cadastradas e ativas; false = cidades sem cadastro também são atendidas. */
+      restrictToRegistered: z.boolean(),
+    }),
+    default: { restrictToRegistered: false },
+  },
   'ops.rainCities': {
     description: 'Cidades com adicional de chuva ativo ("cidade/uf" em minúsculas)',
     schema: z.array(z.string().min(3)).max(500),

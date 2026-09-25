@@ -8,6 +8,10 @@ import {
   Bike,
   Briefcase,
   BrainCircuit,
+  CreditCard,
+  Globe2,
+  MapPinned,
+  Palette,
   ShieldAlert,
   Calculator,
   ShoppingBag,
@@ -33,7 +37,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import { cn, useTheme } from '@levoja/web-kit/ui';
+import { BrandLogo, cn, useTheme } from '@levoja/web-kit/ui';
 import { SessionProvider, useSession } from '@/lib/session';
 
 const NAV = [
@@ -58,6 +62,10 @@ const NAV = [
   { href: '/contatos', label: 'Mensagens de contato', icon: Inbox, permission: 'support.tickets.read' },
   { href: '/auditoria', label: 'Auditoria', icon: FileClock, permission: 'audit.read' },
   { href: '/privacidade', label: 'Privacidade (LGPD)', icon: Lock, permission: 'privacy.manage' },
+  { href: '/cidades', label: 'Cidades', icon: MapPinned, permission: 'operations.view' },
+  { href: '/planos', label: 'Planos SaaS', icon: CreditCard, permission: 'plans.manage' },
+  { href: '/marca', label: 'Marca', icon: Palette, permission: 'settings.manage' },
+  { href: '/tenants', label: 'Tenants (white label)', icon: Globe2, permission: 'tenants.manage' },
   { href: '/configuracoes', label: 'Configurações', icon: Settings, permission: 'settings.manage' },
 ] as const;
 
@@ -121,7 +129,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen lg:flex">
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-border bg-surface lg:flex">
         <div className="flex h-16 items-center gap-2 border-b border-border px-5">
-          <span className="text-lg font-extrabold text-brand-500">LevoJá</span>
+          <BrandLogo className="text-lg font-extrabold text-brand-500" />
           <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-muted">Admin</span>
         </div>
         {nav}
@@ -129,7 +137,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-surface px-4 lg:hidden">
-        <span className="text-lg font-extrabold text-brand-500">LevoJá Admin</span>
+        <BrandLogo className="text-lg font-extrabold text-brand-500" suffix="Admin" />
         <button onClick={() => setOpen(true)} aria-label="Abrir menu" className="rounded-lg p-2 hover:bg-surface-2">
           <Menu className="h-5 w-5" />
         </button>
@@ -139,7 +147,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
           <aside className="absolute inset-y-0 left-0 flex w-72 flex-col bg-surface">
             <div className="flex h-14 items-center justify-between border-b border-border px-4">
-              <span className="font-extrabold text-brand-500">LevoJá Admin</span>
+              <BrandLogo className="font-extrabold text-brand-500" suffix="Admin" />
               <button onClick={() => setOpen(false)} aria-label="Fechar menu" className="rounded-lg p-2 hover:bg-surface-2">
                 <X className="h-5 w-5" />
               </button>

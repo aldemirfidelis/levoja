@@ -12,3 +12,4 @@ export * from './charts';
 export * from './chat';
 export * from './support';
 export * from './report';
+export * from './brand';

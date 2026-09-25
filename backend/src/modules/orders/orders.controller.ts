@@ -2,7 +2,7 @@ import { Body, Controller, Get, NotFoundException, Param, ParseUUIDPipe, Post, Q
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { randomUUID } from 'node:crypto';
-import { CompanyPermission, CurrentUser, RequirePermissions } from '../../common/decorators';
+import { AllowApiKey, CompanyPermission, CurrentUser, RequireFeature, RequirePermissions } from '../../common/decorators';
 import type { AuthUser } from '../../common/auth/auth-user';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { StorageService } from '../../infra/storage/storage.service';
@@ -72,6 +72,7 @@ export class CustomerOrdersController {
 
 @ApiTags('Empresas • Pedidos')
 @ApiBearerAuth()
+@RequireFeature('orders')
 @Controller('companies/:companyId/orders')
 export class CompanyOrdersController {
   constructor(
@@ -80,6 +81,7 @@ export class CompanyOrdersController {
   ) {}
 
   @Get()
+  @AllowApiKey('orders:read')
   @CompanyPermission('company.orders.read', 'orders.read')
   @ApiOperation({ summary: 'Pedidos da loja (scope=active para o quadro de pedidos)' })
   list(@Param('companyId', ParseUUIDPipe) companyId: string, @Query() query: OrdersQueryDto) {
@@ -87,24 +89,28 @@ export class CompanyOrdersController {
   }
 
   @Get(':id')
+  @AllowApiKey('orders:read')
   @CompanyPermission('company.orders.read', 'orders.read')
   get(@Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string) {
     return this.orders.getForCompany(companyId, id);
   }
 
   @Post(':id/confirm')
+  @AllowApiKey('orders:write')
   @CompanyPermission('company.orders.manage')
   confirm(@CurrentUser() user: AuthUser, @Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string) {
     return this.orders.companyAction(user, companyId, id, 'confirm');
   }
 
   @Post(':id/prepare')
+  @AllowApiKey('orders:write')
   @CompanyPermission('company.orders.manage')
   prepare(@CurrentUser() user: AuthUser, @Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string) {
     return this.orders.companyAction(user, companyId, id, 'prepare');
   }
 
   @Post(':id/ready')
+  @AllowApiKey('orders:write')
   @CompanyPermission('company.orders.manage')
   @ApiOperation({ summary: 'Pedido pronto (entrega: aciona o despacho; retirada: aguarda o cliente)' })
   ready(@CurrentUser() user: AuthUser, @Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string) {
@@ -112,6 +118,7 @@ export class CompanyOrdersController {
   }
 
   @Post(':id/cancel')
+  @AllowApiKey('orders:write')
   @CompanyPermission('company.orders.manage')
   cancel(
     @CurrentUser() user: AuthUser,

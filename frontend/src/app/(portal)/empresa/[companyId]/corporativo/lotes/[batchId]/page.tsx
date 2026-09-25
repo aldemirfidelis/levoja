@@ -6,9 +6,10 @@ import { useParams } from 'next/navigation';
 import { ArrowLeft, Download, Route } from 'lucide-react';
 import { BATCH_ITEM_STATUS_LABELS, BATCH_STATUS_LABELS, DELIVERY_STATUS_LABELS, formatBRL, ROUTE_STATUS_LABELS, VEHICLE_TYPE_LABELS, type DeliveryStatus } from '@levoja/shared';
 import { api, Paginated, useApi, useRealtime } from '@levoja/web-kit/client';
-import { Badge, Button, Card, ConfirmDialog, DataTable, ErrorState, formatDateTime, Input, Pagination, Skeleton, StatCard, Tabs, useToast } from '@levoja/web-kit/ui';
+import { Badge, Button, Card, ConfirmDialog, DataTable, formatDateTime, Input, Pagination, Skeleton, StatCard, Tabs, useToast } from '@levoja/web-kit/ui';
 import { BATCH_TONE, type BatchView } from '@/components/b2b';
 import { useCompany } from '@/lib/company';
+import { PlanAwareError } from '@/components/plan-gate';
 
 interface BatchDetail extends BatchView {
   pickup: { name: string | null; street: string; number: string; city: string };
@@ -49,7 +50,7 @@ export default function BatchPage() {
   const [canceling, setCanceling] = useState(false);
   const [when, setWhen] = useState('');
 
-  if (error) return <ErrorState error={error} onRetry={() => refetch()} />;
+  if (error) return <PlanAwareError error={error} onRetry={() => refetch()} />;
   if (isLoading || !data) return <Skeleton className="h-96" />;
   const manage = can('company.deliveries.request');
 

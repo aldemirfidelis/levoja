@@ -48,6 +48,10 @@
 | `broadcasts` | comunicados em massa (promoção com consentimento; aviso operacional para parceiros) | 6 |
 | `b2b` | contratos, tabela especial, limites, centros de custo, unidades, lotes e rotas, recorrências, faturas, chaves de API | 7 |
 | `intelligence` | antifraude (sinais, score, casos), previsão de demanda e de entregadores, calibração do tempo de entrega, anomalias, adicionais de preço com aprovação, análise de avaliações, IA assistiva | 8 |
+| `cities` | cidades atendidas, situação de operação, bloqueio de pedidos/entregas, lista de espera e indicadores por cidade | 9 |
+| `saas` | planos, assinaturas, cobrança mensal na carteira, recursos (`@RequireFeature`) e limites por plano | 9 |
+| `tenants` (admin) | provisionamento de tenants white label, marca do tenant, marca própria das empresas | 9 |
+| `public-api` | webhooks assinados, uso das chaves de API e painel de integração | 9 |
 
 Próximas fases: ver [roadmap](roadmap.md). Decisões do financeiro: [ADR 0003](adr/0003-financeiro-ledger-e-liquidacao.md).
 
@@ -81,6 +85,7 @@ contratada, um modo de desenvolvimento **explícito** (configurado por variável
 | Pagamentos | Mercado Pago (`PAYMENT_GATEWAY=mercadopago`) ou `none` (só dinheiro) | `sandbox` — PIX e cartões simulados; **proibido em produção** |
 | Saques (PIX) | `PAYOUT_PROVIDER=manual` (financeiro transfere e confirma) | `sandbox` — transferência simulada; **proibido em produção** |
 | Ligação mascarada | Twilio (`VOICE_PROVIDER=twilio`): ponte com o número da plataforma | `none` — recurso oculto; o chat continua disponível |
+| Webhooks (saída) | HTTPS com IP público, assinatura HMAC e novas tentativas | `WEBHOOK_ALLOW_PRIVATE_URLS=true` — permite `http://localhost` (proibido em produção) |
 | IA assistiva | Claude pela API da Anthropic (`AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `AI_MODEL`) | `none` — modelos de texto, léxico e indicadores calculados (todos os recursos continuam funcionando) |
 
 ## Aplicativos (Expo)
@@ -171,6 +176,28 @@ críticas. Nenhuma conta é bloqueada, nenhum preço muda e nenhuma resposta é 
   estruturada validada por Zod e fallback no servidor em caso de recusa). `AiService` aplica recursos
   habilitados, limite diário e registra cada chamada (`AiInteraction`). Dados pessoais são removidos antes
   do envio; o assistente das lojas só tem ferramentas somente leitura presas à empresa da rota.
+
+## Escala (Fase 9)
+
+- **Tenants (white label da plataforma):** `provisionTenant` (usado pelo seed e pelo painel) cria de forma aditiva
+  papéis, segmentos, preços, comissão, planos e documentos legais. A marca fica em `tenants.branding` e é
+  exposta em `GET /v1/tenant`; portais e painel buscam a marca no servidor e trocam a paleta `--color-brand-*`
+  (gerada a partir de uma cor) — um deploy de portal/painel por tenant (`TENANT_SLUG`). E-mails usam o nome e os
+  endereços do tenant. Apps por marca são builds EAS parametrizados (nome, ícones, cor, bundle, tenant).
+- **Cidades:** `CitiesService.gate` (cache curto) é consultado na cotação de pedidos (vira pendência) e de
+  entregas (recusa). Cidade desconhecida é atendida, salvo `cities.restrictToRegistered`. A lista de espera cria a
+  cidade "em preparação" — o painel mostra onde há demanda.
+- **Planos SaaS:** `SubscriptionsService.effective` (cache de 30 s) resolve recursos e limites da empresa
+  (desligado ⇒ tudo liberado). `PlanFeatureGuard` roda depois do acesso à empresa e respeita `@RequireFeature`
+  (classe) com exceções por rota (`@RequireFeature(null)`); limites são conferidos nos serviços (produtos,
+  equipe, chaves, unidades). Cobrança: lançamento `SUBSCRIPTION` na carteira da empresa e da plataforma
+  (idempotente); a cobrança fica paga quando a carteira não está negativa. Ciclo horário: renovação, troca
+  agendada, cancelamento e atraso (carência ⇒ `PAST_DUE`; depois, recursos do plano padrão).
+- **API pública:** `@AllowApiKey(escopo)` marca a rota e a publica em `/docs/public`. O guard autentica a
+  chave, registra o uso ao fim da resposta (inclusive recusas), confere escopo, recurso do plano e o limite
+  por minuto (contador atômico no Redis). **Webhooks:** eventos de domínio viram entregas por endpoint
+  (`webhook_deliveries`), enviadas por job com assinatura `t=,v1=` (HMAC-SHA256), sem seguir redirecionamentos,
+  com checagem de IP público a cada envio, novas tentativas (1 min → 12 h) e desativação após 20 falhas.
 
 ## Multi-tenant
 

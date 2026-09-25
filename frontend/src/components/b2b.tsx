@@ -68,7 +68,6 @@ const ITEMS = [
   { path: '/centros-de-custo', label: 'Centros de custo', permissions: ['company.deliveries.request'] },
   { path: '/faturas', label: 'Faturas', permissions: ['company.finance.read'] },
   { path: '/relatorio', label: 'Relatório', permissions: ['company.reports.read'] },
-  { path: '/integracao', label: 'Integração (API)', permissions: ['company.b2b.manage'] },
 ];
 
 /** Navegação da área corporativa (respeita as permissões do membro). */

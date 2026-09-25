@@ -22,10 +22,17 @@ export const ROUTE_STATUS_LABELS = {
   CANCELED: 'Cancelada',
 } as const;
 
-/** Escopos das chaves de API das empresas (cada um exige a permissão equivalente de quem criou a chave). */
+/**
+ * Escopos das chaves de API das empresas. Cada escopo exige a permissão equivalente de quem criou a
+ * chave e o recurso do plano (quando os planos SaaS estão ativos); cada rota declara o escopo que aceita.
+ */
 export const API_KEY_SCOPES = {
-  'deliveries:read': { label: 'Consultar entregas e lotes', permission: 'company.orders.read' },
-  'deliveries:write': { label: 'Criar entregas, lotes e cancelar', permission: 'company.deliveries.request' },
+  'deliveries:read': { label: 'Consultar entregas e lotes', permission: 'company.orders.read', feature: 'integrations' },
+  'deliveries:write': { label: 'Criar entregas, lotes e cancelar', permission: 'company.deliveries.request', feature: 'integrations' },
+  'catalog:read': { label: 'Consultar produtos, preços e estoque', permission: 'company.products.read', feature: 'api' },
+  'catalog:write': { label: 'Criar e alterar produtos, preços e estoque', permission: 'company.products.manage', feature: 'api' },
+  'orders:read': { label: 'Consultar pedidos', permission: 'company.orders.read', feature: 'api' },
+  'orders:write': { label: 'Confirmar, preparar, marcar pronto e cancelar pedidos', permission: 'company.orders.manage', feature: 'api' },
 } as const;
 export type ApiKeyScope = keyof typeof API_KEY_SCOPES;
 

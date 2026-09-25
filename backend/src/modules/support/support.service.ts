@@ -4,6 +4,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'node:crypto';
 import { TICKET_STATUS_LABELS } from '@levoja/shared';
 import { PrismaService, Tx } from '../../infra/prisma/prisma.service';
+import { SubscriptionsService } from '../saas/subscriptions.service';
 import { StorageService } from '../../infra/storage/storage.service';
 import { safeFileName, UploadedFileLike, validateUpload } from '../../infra/storage/file-validation';
 import { AuditService } from '../audit/audit.service';
@@ -68,6 +69,7 @@ export class SupportService {
     private readonly settings: SettingsService,
     private readonly notifications: NotificationsService,
     private readonly realtime: RealtimeService,
+    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -142,7 +144,12 @@ export class SupportService {
   async create(user: AuthUser, input: CreateTicketInput) {
     this.assertRole(user, input.as, input.companyId);
     const { active } = await this.assertReferences(user, input);
-    const priority = this.initialPriority(input.category, active);
+    let priority = this.initialPriority(input.category, active);
+    // Plano com SLA: chamados da empresa entram, no mínimo, com prioridade alta.
+    if (input.as === 'COMPANY' && input.companyId && (priority === 'LOW' || priority === 'MEDIUM') && (await this.subscriptions.hasFeature(user.tenantId, input.companyId, 'sla'))) {
+      const { enforced } = await this.subscriptions.effective(user.tenantId, input.companyId);
+      if (enforced) priority = 'HIGH';
+    }
     const now = new Date();
     const due = await this.dueDates(user.tenantId, priority, now);
     const ticket = await this.prisma.$transaction(async (tx) => {

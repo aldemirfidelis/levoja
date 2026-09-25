@@ -30,6 +30,8 @@ const pg = new EmbeddedPostgres({
   password,
   port,
   persistent: true,
+  // UTF-8 independente do idioma do Windows (senão o cluster nasce em WIN1252 e recusa emoji e símbolos).
+  initdbFlags: ['--encoding=UTF8', '--locale=C'],
   onLog: (message) => {
     recentLogs.push(String(message).trim());
     if (recentLogs.length > 20) recentLogs.shift();
@@ -53,12 +55,19 @@ try {
 
 const client = pg.getPgClient();
 await client.connect();
-const { rows } = await client.query('SELECT datname FROM pg_database');
-const existing = new Set(rows.map((row) => row.datname));
+const { rows } = await client.query('SELECT datname, pg_encoding_to_char(encoding) AS encoding FROM pg_database');
+const existing = new Map(rows.map((row) => [row.datname, row.encoding]));
 for (const name of databases) {
   if (!existing.has(name)) {
-    await client.query(`CREATE DATABASE "${name}"`);
-    console.log(`[dev-db] Banco "${name}" criado.`);
+    await client.query(`CREATE DATABASE "${name}" ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C' TEMPLATE template0`);
+    console.log(`[dev-db] Banco "${name}" criado (UTF-8).`);
+  } else if (existing.get(name) !== 'UTF8') {
+    // Nunca recria sozinho (apagaria os dados): apenas avisa.
+    console.warn(
+      `[dev-db] ATENÇÃO: o banco "${name}" usa ${existing.get(name)}; textos com emoji ou símbolos fora dessa tabela serão recusados.
+` +
+        `          Para corrigir (apaga os dados de desenvolvimento): pare este script, apague a pasta .data/postgres e rode de novo; depois aplique as migrations e o seed.`,
+    );
   }
 }
 await client.end();

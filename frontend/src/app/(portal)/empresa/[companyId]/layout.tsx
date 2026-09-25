@@ -23,6 +23,9 @@ const TABS: { path: string; label: string; permission: string | string[] | null;
   { path: '/documentos', label: 'Documentos', permission: 'company.profile.manage' },
   { path: '/financeiro', label: 'Financeiro', permission: ['company.finance.read', 'company.profile.manage'] },
   { path: '/equipe', label: 'Equipe', permission: 'company.users.manage' },
+  { path: '/integracoes', label: 'Integrações', permission: 'company.b2b.manage', approvedOnly: true },
+  { path: '/marca', label: 'Marca própria', permission: 'company.profile.manage', approvedOnly: true },
+  { path: '/plano', label: 'Plano', permission: 'company.profile.manage' },
   { path: '/suporte', label: 'Atendimento', permission: 'company.support.use' },
 ];
 

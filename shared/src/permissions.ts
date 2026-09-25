@@ -52,7 +52,8 @@ export const PERMISSIONS = [
   p('company.reports.read', 'Empresa', 'Visualizar relatórios e indicadores', 'COMPANY'),
   p('company.reviews.write', 'Empresa', 'Avaliar entregadores', 'COMPANY'),
   p('company.support.use', 'Empresa', 'Abrir chamados de suporte', 'COMPANY'),
-  p('company.b2b.manage', 'Empresa', 'Gerenciar centros de custo, unidades, entregas recorrentes e chaves de API', 'COMPANY'),
+  p('company.b2b.manage', 'Empresa', 'Gerenciar centros de custo, unidades, entregas recorrentes, chaves de API e webhooks', 'COMPANY'),
+  p('company.subscription.manage', 'Empresa', 'Contratar, trocar e cancelar o plano da empresa', 'COMPANY'),
 
   // --- Plataforma: usuários e acesso ---
   p('users.read', 'Usuários', 'Visualizar usuários'),
@@ -278,8 +279,8 @@ export const SYSTEM_ROLES: readonly RoleDefinition[] = [
     description: 'Gerencia catálogo, pedidos e entregas',
     scope: 'COMPANY',
     isStaff: false,
-    // Saques ficam com o proprietário e o financeiro da empresa.
-    permissions: byPrefix('company.').filter((key) => key !== 'company.users.manage' && key !== 'company.finance.withdraw'),
+    // Saques e plano ficam com o proprietário (e saques também com o financeiro da empresa).
+    permissions: byPrefix('company.').filter((key) => key !== 'company.users.manage' && key !== 'company.finance.withdraw' && key !== 'company.subscription.manage'),
   },
   {
     key: 'company_attendant',

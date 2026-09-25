@@ -1,4 +1,6 @@
 import { useColorScheme } from 'react-native';
+import { brandPalette, isHexColor } from '@levoja/shared';
+import { kitConfigOrNull } from './config';
 
 /** Mesma paleta do portal web (web-kit/theme.css) para uma identidade única. */
 export const brand = {
@@ -68,8 +70,26 @@ export const darkColors: Colors = {
 
 export type Tone = 'neutral' | 'brand' | 'success' | 'warning' | 'danger' | 'info';
 
+const branded = new Map<string, Colors>();
+
+/** Paleta com a cor da marca configurada no build (white label); sem configuração, a padrão. */
+export function themeColors(dark: boolean): Colors {
+  const color = kitConfigOrNull()?.brandColor;
+  const base = dark ? darkColors : lightColors;
+  if (!color || !isHexColor(color)) return base;
+  const key = `${color}:${dark}`;
+  let colors = branded.get(key);
+  if (!colors) {
+    const palette = brandPalette(color);
+    const [r, g, b] = [1, 3, 5].map((index) => parseInt(palette[500].slice(index, index + 2), 16));
+    colors = { ...base, brand: palette[500], brandPressed: dark ? palette[400] : palette[600], brandSoft: dark ? `rgba(${r},${g},${b},0.16)` : palette[50] };
+    branded.set(key, colors);
+  }
+  return colors;
+}
+
 export function useColors(): Colors {
-  return useColorScheme() === 'dark' ? darkColors : lightColors;
+  return themeColors(useColorScheme() === 'dark');
 }
 
 export function useIsDark(): boolean {

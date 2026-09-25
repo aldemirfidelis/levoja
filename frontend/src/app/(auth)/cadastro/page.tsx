@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { fetchTenantBranding } from '@levoja/web-kit/brand';
 import Link from 'next/link';
 import { Bike, Building2, ShoppingBag } from 'lucide-react';
 
@@ -10,10 +11,11 @@ const OPTIONS = [
   { href: '/cadastro/entregador', icon: Bike, title: 'Quero entregar', text: 'Ganhe dinheiro fazendo entregas no seu horário.' },
 ];
 
-export default function SignupChooserPage() {
+export default async function SignupChooserPage() {
+  const brand = await fetchTenantBranding(process.env.API_URL ?? 'http://localhost:3333', process.env.TENANT_SLUG ?? 'levoja');
   return (
     <div className="w-full max-w-3xl">
-      <h1 className="text-center text-3xl font-extrabold text-fg">Como você quer usar a LevoJá?</h1>
+      <h1 className="text-center text-3xl font-extrabold text-fg">Como você quer usar {brand.appName === 'LevoJá' ? 'a LevoJá' : brand.appName}?</h1>
       <p className="mt-2 text-center text-muted">Você pode adicionar outros perfis depois, com a mesma conta.</p>
       <div className="mt-8 grid gap-4 sm:grid-cols-3">
         {OPTIONS.map((option) => (

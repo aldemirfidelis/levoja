@@ -1,7 +1,7 @@
 import { BadRequestException, Controller, Get, Param, ParseUUIDPipe, Query, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { CompanyPermission, CurrentUser, RequirePermissions } from '../../common/decorators';
+import { CompanyPermission, CurrentUser, RequireFeature, RequirePermissions } from '../../common/decorators';
 import type { AuthUser } from '../../common/auth/auth-user';
 import { AuditService } from '../audit/audit.service';
 import { OperationsService } from './operations.service';
@@ -100,6 +100,7 @@ export class ReportsController {
 
 @ApiTags('Empresas • Indicadores')
 @ApiBearerAuth()
+@RequireFeature('reports')
 @Controller('companies/:companyId/dashboard')
 export class CompanyDashboardController {
   constructor(private readonly reports: ReportsService) {}

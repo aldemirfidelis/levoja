@@ -14,6 +14,7 @@ export const LEDGER_ENTRY_TYPES = [
   'WITHDRAWAL',
   'WITHDRAWAL_REVERSAL',
   'PAYMENT',
+  'SUBSCRIPTION',
 ] as const;
 export type LedgerEntryType = (typeof LEDGER_ENTRY_TYPES)[number];
 
@@ -31,6 +32,7 @@ export const LEDGER_ENTRY_LABELS: Record<LedgerEntryType, string> = {
   WITHDRAWAL: 'Saque',
   WITHDRAWAL_REVERSAL: 'Saque devolvido',
   PAYMENT: 'Pagamento',
+  SUBSCRIPTION: 'Mensalidade do plano',
 };
 
 export const LEDGER_ENTRY_STATUS_LABELS = { PENDING: 'A liberar', AVAILABLE: 'Disponível', CANCELED: 'Cancelado' } as const;

@@ -16,7 +16,7 @@ import { Throttle } from '@nestjs/throttler';
 import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { REVIEW_THEMES } from '@levoja/shared';
-import { AllowApiKey, CompanyPermission, CurrentUser, Public, RequirePermissions } from '../../common/decorators';
+import { AllowApiKey, CompanyPermission, CurrentUser, Public, RequireFeature, RequirePermissions } from '../../common/decorators';
 import type { AuthUser } from '../../common/auth/auth-user';
 import { PaginationQueryDto } from '../../common/pagination';
 import { PrismaService } from '../../infra/prisma/prisma.service';
@@ -292,6 +292,7 @@ export class CustomerDeliveriesController {
 
 @ApiTags('Empresas • Entregas')
 @ApiBearerAuth()
+@RequireFeature('deliveries')
 @Controller('companies/:companyId/deliveries')
 export class CompanyDeliveriesController {
   constructor(
@@ -301,14 +302,14 @@ export class CompanyDeliveriesController {
   ) {}
 
   @Post('quote')
-  @AllowApiKey()
+  @AllowApiKey('deliveries:write')
   @CompanyPermission('company.deliveries.request')
   quote(@CurrentUser() user: AuthUser, @Param('companyId', ParseUUIDPipe) companyId: string, @Body() dto: DeliveryQuoteDto) {
     return this.deliveries.quoteView(user, dto, companyId);
   }
 
   @Post()
-  @AllowApiKey()
+  @AllowApiKey('deliveries:write')
   @CompanyPermission('company.deliveries.request')
   @ApiOperation({ summary: 'Solicitar entrega avulsa (coleta padrão: endereço da empresa)' })
   async create(@CurrentUser() user: AuthUser, @Param('companyId', ParseUUIDPipe) companyId: string, @Body() dto: CreateDeliveryDto) {
@@ -317,21 +318,21 @@ export class CompanyDeliveriesController {
   }
 
   @Get()
-  @AllowApiKey()
+  @AllowApiKey('deliveries:read')
   @CompanyPermission('company.orders.read', 'deliveries.read')
   list(@Param('companyId', ParseUUIDPipe) companyId: string, @Query() query: DeliveriesQueryDto) {
     return this.deliveries.listForCompany(companyId, query);
   }
 
   @Get(':id')
-  @AllowApiKey()
+  @AllowApiKey('deliveries:read')
   @CompanyPermission('company.orders.read', 'deliveries.read')
   get(@Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string) {
     return this.deliveries.getForCompany(companyId, id);
   }
 
   @Post(':id/cancel')
-  @AllowApiKey()
+  @AllowApiKey('deliveries:write')
   @CompanyPermission('company.deliveries.request')
   async cancel(@CurrentUser() user: AuthUser, @Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: CancelDeliveryDto) {
     const delivery = await this.prisma.delivery.findFirst({ where: { id, companyId, kind: 'ON_DEMAND' } });

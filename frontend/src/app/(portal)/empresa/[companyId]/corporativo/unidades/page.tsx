@@ -3,9 +3,10 @@
 import { FormEvent, useState } from 'react';
 import { Building2, MapPin, Plus } from 'lucide-react';
 import { api, useApi } from '@levoja/web-kit/client';
-import { Badge, Button, Card, Checkbox, DataTable, Dialog, EmptyState, ErrorState, Input, SkeletonRows, useToast } from '@levoja/web-kit/ui';
+import { Badge, Button, Card, Checkbox, DataTable, Dialog, EmptyState, Input, SkeletonRows, useToast } from '@levoja/web-kit/ui';
 import type { CompanyLocation } from '@/components/b2b';
 import { useCompany } from '@/lib/company';
+import { PlanAwareError } from '@/components/plan-gate';
 
 type Form = {
   name: string;
@@ -158,7 +159,7 @@ export default function LocationsPage() {
     <Card title="Unidades e locais" actions={manage && <Button icon={<Plus className="h-4 w-4" />} onClick={() => setEditing('new')}>Novo local</Button>}>
       <p className="mb-4 text-sm text-muted">Filiais, centros de distribuição e endereços frequentes. Escolha-os como coleta ou destino — uma entrega entre duas unidades é uma transferência.</p>
       {isLoading && <SkeletonRows rows={3} />}
-      {error && <ErrorState error={error} onRetry={() => refetch()} />}
+      {error && <PlanAwareError error={error} onRetry={() => refetch()} />}
       {data?.length === 0 && <EmptyState icon={<Building2 className="h-8 w-8" />} title="Nenhum local cadastrado" />}
       {data && data.length > 0 && (
         <DataTable

@@ -159,3 +159,22 @@ test('Inteligência: faixas horárias e rótulos completos', async () => {
   assert.equal(cityKey(' São Paulo ', 'SP'), 'sao paulo/sp');
   assert.equal(cityKey('Jundiaí', null), 'jundiai/');
 });
+
+test('Escala: paleta da marca, domínios e planos padrão', async () => {
+  const { brandPalette, isValidDomain, isHexColor, DEFAULT_PLANS, PLAN_FEATURES, PLAN_LIMIT_KEYS, API_KEY_SCOPES } = await import('./index');
+  const palette = brandPalette('#2A78D6');
+  assert.equal(palette[500], '#2a78d6');
+  assert.ok(isHexColor(palette[50]) && isHexColor(palette[900]));
+  assert.notEqual(palette[50], palette[900]);
+  assert.equal(brandPalette('vermelho')[500], '#ff5a1f');
+  assert.ok(isValidDomain('entregas.empresa.com.br'));
+  assert.ok(!isValidDomain('https://empresa.com.br'));
+  assert.ok(!isValidDomain('localhost'));
+  assert.ok(!isValidDomain('empresa.com.br/loja'));
+  assert.equal(DEFAULT_PLANS.filter((plan) => plan.isDefault).length, 1);
+  for (const plan of DEFAULT_PLANS) {
+    assert.ok(plan.features.every((feature) => PLAN_FEATURES.includes(feature)));
+    assert.deepEqual(Object.keys(plan.limits).sort(), [...PLAN_LIMIT_KEYS].sort());
+  }
+  assert.ok(Object.values(API_KEY_SCOPES).every((scope) => PLAN_FEATURES.includes(scope.feature)));
+});

@@ -3,6 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { haversineKm, VEHICLE_RANK } from '@levoja/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { SubscriptionsService } from '../saas/subscriptions.service';
 import { JobsService } from '../../infra/jobs/jobs.service';
 import { SettingsService, SettingValue } from '../settings/settings.service';
 import { PricingService } from '../pricing/pricing.service';
@@ -57,6 +58,7 @@ export class DispatchService implements OnModuleInit {
     private readonly deliveries: DeliveriesService,
     private readonly pricing: PricingService,
     private readonly events: EventEmitter2,
+    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   onModuleInit(): void {
@@ -221,7 +223,9 @@ export class DispatchService implements OnModuleInit {
     const company = delivery.companyId
       ? await this.prisma.company.findUnique({ where: { id: delivery.companyId }, select: { fulfillmentMode: true } })
       : null;
-    const mode = company?.fulfillmentMode ?? 'PLATFORM';
+    let mode = company?.fulfillmentMode ?? 'PLATFORM';
+    // Frota própria é recurso de plano: sem ele (ex.: plano rebaixado), a entrega vai para a rede da plataforma.
+    if (mode !== 'PLATFORM' && delivery.companyId && !(await this.subscriptions.hasFeature(delivery.tenantId, delivery.companyId, 'own_fleet'))) mode = 'PLATFORM';
     const fleetFilter: Prisma.DriverWhereInput =
       mode === 'OWN_FLEET'
         ? { fleetType: 'COMPANY', fleetCompanyId: delivery.companyId }

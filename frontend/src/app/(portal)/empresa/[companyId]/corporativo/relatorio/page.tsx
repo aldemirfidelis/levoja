@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { api, buildQuery, useApi } from '@levoja/web-kit/client';
-import { Card, ErrorState, Input, ReportView, Select, Skeleton, type ReportData } from '@levoja/web-kit/ui';
+import { Card, Input, ReportView, Select, Skeleton, type ReportData } from '@levoja/web-kit/ui';
 import type { CostCenter } from '@/components/b2b';
 import { useCompany } from '@/lib/company';
+import { PlanAwareError } from '@/components/plan-gate';
 
 const localDate = (date: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(date);
 
@@ -43,7 +44,7 @@ export default function CorporateReportPage() {
           />
         </div>
       </Card>
-      {error && <ErrorState error={error} onRetry={() => refetch()} />}
+      {error && <PlanAwareError error={error} onRetry={() => refetch()} />}
       {isLoading && <Skeleton className="h-96" />}
       {data && <ReportView report={data} faded={isFetching} csvUrl={(table) => api.fileUrl(`companies/${company.id}/b2b/report${buildQuery({ ...query, format: 'csv', table })}`)} />}
     </div>

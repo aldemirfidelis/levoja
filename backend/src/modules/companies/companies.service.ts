@@ -12,6 +12,7 @@ import {
   ROLE_KEYS,
 } from '@levoja/shared';
 import { PrismaService, Tx } from '../../infra/prisma/prisma.service';
+import { SubscriptionsService } from '../saas/subscriptions.service';
 import { CryptoService } from '../../infra/crypto/crypto.service';
 import { StorageService } from '../../infra/storage/storage.service';
 import { safeFileName, UploadedFileLike, validateUpload } from '../../infra/storage/file-validation';
@@ -61,6 +62,7 @@ export class CompaniesService {
     private readonly bankAccounts: BankAccountsService,
     private readonly events: EventEmitter2,
     private readonly maps: MapsService,
+    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -241,6 +243,9 @@ export class CompaniesService {
 
   async update(companyId: string, dto: UpdateCompanyDto) {
     const company = await this.findDetail(companyId);
+    if (dto.fulfillmentMode && dto.fulfillmentMode !== 'PLATFORM' && dto.fulfillmentMode !== company.fulfillmentMode) {
+      await this.subscriptions.assertFeature(company.tenantId, companyId, 'own_fleet');
+    }
     const touchesLegal = LEGAL_FIELDS.some((field) => dto[field] !== undefined);
     if (touchesLegal && !EDITABLE_LEGAL_STATUSES.includes(company.status)) {
       throw new ConflictException('Dados jurídicos não podem ser alterados após o envio para análise. Contate o suporte.');

@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { Download, Receipt } from 'lucide-react';
 import { formatBRL, INVOICE_STATUS_LABELS, type InvoiceStatus } from '@levoja/shared';
 import { api, Paginated, useApi } from '@levoja/web-kit/client';
-import { Badge, Button, Card, DataTable, DescriptionList, Dialog, EmptyState, ErrorState, formatDateTime, Pagination, PixCharge, SkeletonRows, Tone, useToast } from '@levoja/web-kit/ui';
+import { Badge, Button, Card, DataTable, DescriptionList, Dialog, EmptyState, formatDateTime, Pagination, PixCharge, SkeletonRows, Tone, useToast } from '@levoja/web-kit/ui';
 import { useCompany } from '@/lib/company';
+import { PlanAwareError } from '@/components/plan-gate';
 
 interface Invoice {
   id: string;
@@ -131,7 +132,7 @@ export default function InvoicesPage() {
       }
     >
       {isLoading && <SkeletonRows rows={3} />}
-      {error && <ErrorState error={error} onRetry={() => refetch()} />}
+      {error && <PlanAwareError error={error} onRetry={() => refetch()} />}
       {data?.data.length === 0 && <EmptyState icon={<Receipt className="h-8 w-8" />} title="Nenhuma fatura" description="As entregas faturadas são cobradas mensalmente, no dia de fechamento do contrato." />}
       {data && data.data.length > 0 && (
         <>

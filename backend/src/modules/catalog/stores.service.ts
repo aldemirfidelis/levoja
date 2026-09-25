@@ -151,6 +151,7 @@ export class StoresService {
       description: company.description,
       logoUrl: this.storage.publicUrl(company.logoKey),
       bannerUrl: this.storage.publicUrl(company.bannerKey),
+      brandColor: company.brandColor,
       segment: company.segment,
       address: company.address,
       openingHours: company.openingHours.map(({ weekday, opensAt, closesAt }) => ({ weekday, opensAt, closesAt })),

@@ -30,6 +30,8 @@ Object.assign(process.env, {
   PAYOUT_PROVIDER: 'sandbox',
   // Testes nunca chamam o provedor de IA (o caminho com IA usa um provedor simulado).
   AI_PROVIDER: 'none',
+  // Webhooks dos testes vão para um servidor local.
+  WEBHOOK_ALLOW_PRIVATE_URLS: 'true',
 });
 delete process.env.ANTHROPIC_API_KEY;
 delete process.env.REDIS_URL;

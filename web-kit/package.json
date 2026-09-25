@@ -10,7 +10,8 @@
     "./theme.css": "./src/theme.css",
     "./theme-script": "./src/theme-script.ts",
     "./utils": "./src/utils.ts",
-    "./map": "./src/ui/live-map.tsx"
+    "./map": "./src/ui/live-map.tsx",
+    "./brand": "./src/brand.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

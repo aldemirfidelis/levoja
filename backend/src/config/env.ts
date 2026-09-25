@@ -105,6 +105,12 @@ export const envSchema = z
     AI_MODEL: z.string().min(3).default('claude-opus-5'),
     AI_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(600_000).default(90_000),
 
+    /**
+     * Webhooks para endereços internos (localhost, rede privada) e sem HTTPS — somente para
+     * desenvolvimento e testes. Em produção os webhooks exigem HTTPS e IP público.
+     */
+    WEBHOOK_ALLOW_PRIVATE_URLS: bool,
+
     /** Token opcional exigido em /metrics (Authorization: Bearer ...). */
     METRICS_TOKEN: z.string().optional(),
     SWAGGER_ENABLED: bool,
@@ -145,6 +151,9 @@ export const envSchema = z
       }
       if (env.PAYMENT_GATEWAY === 'sandbox') {
         ctx.addIssue({ code: 'custom', path: ['PAYMENT_GATEWAY'], message: 'sandbox não é permitido em produção (use none ou mercadopago)' });
+      }
+      if (env.WEBHOOK_ALLOW_PRIVATE_URLS) {
+        ctx.addIssue({ code: 'custom', path: ['WEBHOOK_ALLOW_PRIVATE_URLS'], message: 'não é permitido em produção' });
       }
       if (env.PAYOUT_PROVIDER === 'sandbox') {
         ctx.addIssue({ code: 'custom', path: ['PAYOUT_PROVIDER'], message: 'sandbox não é permitido em produção (use manual)' });

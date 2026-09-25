@@ -23,6 +23,7 @@ import {
 } from '@levoja/web-kit/ui';
 import { useCompany } from '@/lib/company';
 import type { CompanyOrderView } from '@/components/order-types';
+import { PlanAwareError } from '@/components/plan-gate';
 
 const COLUMNS: { title: string; statuses: OrderStatus[] }[] = [
   { title: 'Novos', statuses: ['NEW'] },
@@ -237,7 +238,7 @@ function Board() {
   const byColumn = useMemo(() => COLUMNS.map((column) => ({ ...column, orders: (data?.data ?? []).filter((order) => column.statuses.includes(order.status)) })), [data]);
 
   if (isLoading) return <SkeletonRows rows={4} />;
-  if (error) return <ErrorState error={error} onRetry={() => refetch()} />;
+  if (error) return <PlanAwareError error={error} onRetry={() => refetch()} />;
 
   return (
     <>

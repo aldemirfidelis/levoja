@@ -1,6 +1,7 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
+import type { ApiKeyScope } from '@levoja/shared';
 import { ALLOW_API_KEY, IS_PUBLIC_KEY } from '../decorators';
 import { toAuthUser } from '../auth/auth-user';
 import { AccessService } from '../../modules/access/access.service';
@@ -40,11 +41,17 @@ export class JwtAuthGuard implements CanActivate {
     const token = extractBearer(request.headers.authorization);
     const apiKey = request.headers['x-api-key'];
 
-    // Integrações de empresas: chave de API somente nas rotas marcadas com @AllowApiKey().
+    // API pública: chave de API somente nas rotas marcadas com @AllowApiKey(escopo).
     if (!token && typeof apiKey === 'string' && apiKey) {
-      const allowed = this.reflector.getAllAndOverride<boolean>(ALLOW_API_KEY, [context.getHandler(), context.getClass()]);
-      if (!allowed) throw new ForbiddenException('Esta rota não aceita chave de API.');
-      const user = await this.apiKeys.authenticate(apiKey);
+      const scope = this.reflector.getAllAndOverride<ApiKeyScope | undefined>(ALLOW_API_KEY, [context.getHandler(), context.getClass()]);
+      if (!scope) throw new ForbiddenException('Esta rota não aceita chave de API.');
+      const response = context.switchToHttp().getResponse();
+      const { user, rate } = await this.apiKeys.authorize(apiKey, scope, (identified) => this.apiKeys.trackUsage(request, response, identified));
+      if (rate) {
+        response.setHeader('X-RateLimit-Limit', String(rate.limit));
+        response.setHeader('X-RateLimit-Remaining', String(rate.remaining));
+        response.setHeader('X-RateLimit-Reset', String(rate.resetSeconds));
+      }
       request.user = user;
       RequestContext.set({ userId: user.userId, tenantId: user.tenantId });
       return true;

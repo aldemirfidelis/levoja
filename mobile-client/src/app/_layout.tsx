@@ -7,9 +7,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import {
   AuthProvider,
-  darkColors,
   ErrorView,
-  lightColors,
+  themeColors,
   OfflineBanner,
   QueryProvider,
   RealtimeProvider,
@@ -55,7 +54,7 @@ function LiveUpdates() {
 function Root() {
   const { status, retry } = useAuth();
   const scheme = useColorScheme();
-  const colors = scheme === 'dark' ? darkColors : lightColors;
+  const colors = themeColors(scheme === 'dark');
   const signedIn = status === 'signedIn';
 
   useEffect(() => {

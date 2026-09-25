@@ -9,6 +9,8 @@ export interface MailMessage {
   paragraphs: string[];
   action?: { label: string; url: string };
   footer?: string;
+  /** Nome da marca no cabeçalho (white label); padrão: APP_NAME. */
+  brand?: string;
 }
 
 /**
@@ -36,7 +38,7 @@ export class MailService {
   }
 
   async send(message: MailMessage): Promise<void> {
-    const html = renderHtml(this.config.env.APP_NAME, message);
+    const html = renderHtml(message.brand ?? this.config.env.APP_NAME, message);
     const text = renderText(message);
 
     if (!this.transporter) {

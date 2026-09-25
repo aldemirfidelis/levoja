@@ -6,9 +6,8 @@ import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import {
   AuthProvider,
-  darkColors,
   ErrorView,
-  lightColors,
+  themeColors,
   OfflineBanner,
   QueryProvider,
   RealtimeProvider,
@@ -64,7 +63,7 @@ function LiveUpdates() {
 function Root() {
   const { status, me, retry } = useAuth();
   const scheme = useColorScheme();
-  const colors = scheme === 'dark' ? darkColors : lightColors;
+  const colors = themeColors(scheme === 'dark');
   const signedIn = status === 'signedIn';
   const driver = me?.driver ?? null;
   const approved = signedIn && driver?.status === 'APPROVED';
