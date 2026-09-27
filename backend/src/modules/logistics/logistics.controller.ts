@@ -14,7 +14,7 @@ import {
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { IsIn, IsInt, IsLatitude, IsLongitude, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { REVIEW_THEMES } from '@levoja/shared';
 import { AllowApiKey, CompanyPermission, CurrentUser, Public, RequireFeature, RequirePermissions } from '../../common/decorators';
 import type { AuthUser } from '../../common/auth/auth-user';
@@ -26,6 +26,7 @@ import { DeliveriesService } from './deliveries.service';
 import { DispatchService } from './dispatch.service';
 import { TrackingService } from './tracking.service';
 import { ReviewsService } from './reviews.service';
+import { MapsService, TravelMode } from '../geo/maps.service';
 import {
   AssignDriverDto,
   AvailabilityDto,
@@ -58,6 +59,14 @@ class DriverReviewDto {
   @ApiPropertyOptional({ type: ReviewInputDto }) @IsOptional() @ValidateNested() @Type(() => ReviewInputDto) company?: ReviewInputDto;
 }
 
+class NavigationQueryDto {
+  @ApiPropertyOptional() @Type(() => Number) @IsLatitude() fromLat!: number;
+  @ApiPropertyOptional() @Type(() => Number) @IsLongitude() fromLng!: number;
+  @ApiPropertyOptional() @Type(() => Number) @IsLatitude() toLat!: number;
+  @ApiPropertyOptional() @Type(() => Number) @IsLongitude() toLng!: number;
+  @ApiPropertyOptional({ enum: ['BICYCLE', 'MOTORCYCLE', 'CAR', 'VAN'] }) @IsOptional() @IsIn(['BICYCLE', 'MOTORCYCLE', 'CAR', 'VAN']) mode?: TravelMode;
+}
+
 class TrackingQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() since?: string;
 }
@@ -86,6 +95,7 @@ export class DriverOperationsController {
     private readonly dispatch: DispatchService,
     private readonly deliveries: DeliveriesService,
     private readonly reviews: ReviewsService,
+    private readonly maps: MapsService,
   ) {}
 
   @Get('dashboard')
@@ -137,6 +147,13 @@ export class DriverOperationsController {
   @ApiOperation({ summary: 'Entregas ativas e paradas na ordem recomendada' })
   route(@CurrentUser() user: AuthUser) {
     return this.tracking.activeRoute(user);
+  }
+
+  @Get('navigation')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Rota curva a curva (linha + manobras em português) para a navegação dentro do app' })
+  navigation(@Query() query: NavigationQueryDto) {
+    return this.maps.navigation({ lat: query.fromLat, lng: query.fromLng }, { lat: query.toLat, lng: query.toLng }, query.mode);
   }
 
   @Get('deliveries')

@@ -157,7 +157,13 @@ export function CouponForm({
             .filter((key) => key !== 'TIER' || (tiers?.length ?? 0) > 0 || form.visibility === 'TIER')
             .map((key) => ({ value: key, label: COUPON_VISIBILITY_LABELS[key] }))}
           onChange={(e) => set('visibility', e.target.value as CouponVisibility)}
-          hint={form.visibility === 'PUBLIC' ? 'Aparece na Home e em "Meus cupons" do app.' : undefined}
+          hint={
+            form.visibility === 'PUBLIC'
+              ? 'Aparece na tela inicial do app (embaixo dos produtos da loja), no cardápio e em "Meus cupons".'
+              : form.visibility === 'CODE'
+                ? 'Não aparece no app: só funciona para quem digitar o código.'
+                : undefined
+          }
         />
         {form.visibility === 'TIER' && (
           <Select label="Nível mínimo" value={form.minTier} placeholder="Escolha" options={(tiers ?? []).map((tier) => ({ value: tier.key, label: tier.name }))} onChange={(e) => set('minTier', e.target.value)} />

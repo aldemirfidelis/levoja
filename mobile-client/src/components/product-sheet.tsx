@@ -1,10 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, View } from 'react-native';
+import { router } from 'expo-router';
 import { api, Badge, Button, errorMessage, Field, formatBRL, Icon, radius, Row, Sheet, space, Stepper, Text, useApiMutation, useColors, useToast } from '@levoja/mobile-kit';
-import type { Product } from '@/lib/types';
+import { StoreAvatar, storeMeta } from '@/components/product-feed-card';
+import { StoreCoupons } from '@/components/store-coupons';
+import type { AvailableCoupon, Product, ProductStore } from '@/lib/types';
 
-/** Detalhe do produto com adicionais/variações (regras de mínimo e máximo por grupo). */
-export function ProductSheet({ product, onClose }: { product: Product | null; onClose: () => void }) {
+/** Restaurantes e afins: "do restaurante"; o resto: "da loja". */
+const FOOD_SEGMENTS = ['restaurantes', 'lanchonetes', 'pizzarias', 'padarias'];
+
+/**
+ * Detalhe do produto com adicionais/variações (regras de mínimo e máximo por grupo).
+ * Com `store` (aberto pela vitrine da tela inicial), mostra a loja e o botão para ver o cardápio dela.
+ */
+export function ProductSheet({ product, store, coupons, onClose }: { product: Product | null; store?: ProductStore; coupons?: AvailableCoupon[]; onClose: () => void }) {
   const colors = useColors();
   const toast = useToast();
   const [selected, setSelected] = useState<Record<string, string[]>>({});
@@ -68,7 +77,32 @@ export function ProductSheet({ product, onClose }: { product: Product | null; on
         </Row>
       }
     >
-      {image ? <Image source={{ uri: image }} style={{ width: '100%', height: 200, borderRadius: radius.lg }} accessibilityIgnoresInvertColors /> : null}
+      {image ? <Image source={{ uri: image }} style={{ width: '100%', height: store ? 240 : 200, borderRadius: radius.lg }} accessibilityIgnoresInvertColors /> : null}
+      {store ? (
+        <View style={{ gap: space(3), padding: space(3), borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface }}>
+          <Row gap={3}>
+            <StoreAvatar store={store} size={40} />
+            <View style={{ flex: 1 }}>
+              <Text weight="800" numberOfLines={1}>
+                {store.tradeName}
+              </Text>
+              <Text variant="caption" tone="muted" numberOfLines={1}>
+                {storeMeta(store)}
+              </Text>
+            </View>
+          </Row>
+          <StoreCoupons coupons={coupons} max={3} />
+          <Button
+            title={`Ver mais produtos ${FOOD_SEGMENTS.includes(store.segment.slug) ? 'do restaurante' : 'da loja'}`}
+            variant="secondary"
+            icon="store"
+            onPress={() => {
+              onClose();
+              router.push(`/loja/${store.id}`);
+            }}
+          />
+        </View>
+      ) : null}
       {product.description ? <Text tone="muted">{product.description}</Text> : null}
       <Row gap={2}>
         <Text variant="heading">{formatBRL(product.effectivePriceCents)}</Text>

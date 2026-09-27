@@ -20,6 +20,8 @@
     "postinstall": "pnpm --filter @levoja/shared build",
     "dev:client": "pnpm --filter @levoja/mobile-client start",
     "dev:driver": "pnpm --filter @levoja/mobile-driver start",
+    "dev:client:usb": "node scripts/expo-usb.mjs client",
+    "dev:driver:usb": "node scripts/expo-usb.mjs driver",
     "android:usb": "node scripts/android-usb.mjs"
   },
   "pnpm": {

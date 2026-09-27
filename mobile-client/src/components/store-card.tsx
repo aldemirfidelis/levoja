@@ -11,21 +11,23 @@ export function StoreCard({ store }: { store: Store }) {
     <Card onPress={() => router.push(`/loja/${store.id}`)} padded={false}>
       <Row gap={3} style={{ padding: space(3), opacity: store.isOpenNow && !outside ? 1 : 0.6 }} align="flex-start">
         {store.logoUrl ? (
-          <Image source={{ uri: store.logoUrl }} style={{ width: 64, height: 64, borderRadius: radius.md }} accessibilityIgnoresInvertColors />
+          <Image source={{ uri: store.logoUrl }} style={{ width: 76, height: 76, borderRadius: radius.lg }} accessibilityIgnoresInvertColors />
         ) : (
-          <View style={{ width: 64, height: 64, borderRadius: radius.md, backgroundColor: colors.brandSoft, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 76, height: 76, borderRadius: radius.lg, backgroundColor: colors.brandSoft, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="store" size={28} color={colors.brand} />
           </View>
         )}
         <View style={{ flex: 1, gap: 3 }}>
-          <Text weight="700" numberOfLines={1}>
+          <Text variant="subheading" weight="800" numberOfLines={1}>
             {store.tradeName}
           </Text>
           <Row gap={2} style={{ flexWrap: 'wrap' }}>
             {store.ratingCount > 0 ? (
               <Row gap={1}>
-                <Icon name="star" size={14} color={colors.warning} />
-                <Text variant="caption">{store.ratingAvg.toFixed(1)}</Text>
+                <Icon name="star" size={14} color={colors.brand} />
+                <Text variant="caption" tone="brand" weight="800">
+                  {store.ratingAvg.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                </Text>
               </Row>
             ) : (
               <Badge label="Novo" tone="brand" />

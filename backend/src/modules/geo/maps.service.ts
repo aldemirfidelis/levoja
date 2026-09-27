@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { haversineKm, LatLng } from '@levoja/shared';
 import { AppConfig } from '../../config/config.module';
 import { CacheService } from '../../infra/cache/cache.service';
+import { NavigationRoute, toNavigationRoute } from './navigation';
 
 export type TravelMode = 'BICYCLE' | 'MOTORCYCLE' | 'CAR' | 'VAN';
 
@@ -102,6 +103,12 @@ export class MapsService {
   private readonly provider: MapsProvider;
   private readonly fallback = new HaversineProvider();
   private readonly geocoder?: NominatimGeocoder;
+  /**
+   * Servidor OSRM da navegação curva a curva: o configurado (OSRM_URL) ou, sem configuração, o servidor
+   * público de demonstração do projeto OSRM — serve para testes; em produção hospede o seu (ou contrate).
+   */
+  private readonly navigationUrl: string;
+  private readonly userAgent: string;
 
   constructor(
     config: AppConfig,
@@ -109,6 +116,9 @@ export class MapsService {
   ) {
     const env = config.env;
     this.provider = env.MAPS_PROVIDER === 'osrm' && env.OSRM_URL ? new OsrmProvider(env.OSRM_URL) : this.fallback;
+    const navigationUrl = env.OSRM_URL ?? 'https://router.project-osrm.org';
+    this.navigationUrl = navigationUrl.endsWith('/') ? navigationUrl.slice(0, -1) : navigationUrl;
+    this.userAgent = `${env.APP_NAME} (${env.API_PUBLIC_URL})`;
     if (env.GEOCODER === 'nominatim') {
       this.geocoder = new NominatimGeocoder(env.NOMINATIM_URL, `${env.APP_NAME} (${env.API_PUBLIC_URL})`);
     }
@@ -131,6 +141,47 @@ export class MapsService {
     }
     await this.cache.set(key, result, 600);
     return result;
+  }
+
+  /**
+   * Rota curva a curva para a navegação dentro do app do entregador (linha no mapa + manobras em
+   * português). Cache curto por trecho (~10 m); se o serviço de rotas falhar, devolve a linha reta
+   * até o destino (o app avisa que a rota é aproximada).
+   */
+  async navigation(origin: LatLng, destination: LatLng, mode: TravelMode = 'MOTORCYCLE'): Promise<NavigationRoute> {
+    const key = `nav:${mode}:${origin.lat.toFixed(4)},${origin.lng.toFixed(4)}:${destination.lat.toFixed(4)},${destination.lng.toFixed(4)}`;
+    const cached = await this.cache.get<NavigationRoute>(key);
+    if (cached) return cached;
+    try {
+      const url = `${this.navigationUrl}/route/v1/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?overview=full&geometries=geojson&steps=true`;
+      const response = await fetch(url, { signal: AbortSignal.timeout(6000), headers: { 'User-Agent': this.userAgent } });
+      if (!response.ok) throw new Error(`OSRM HTTP ${response.status}`);
+      const data = (await response.json()) as { code: string; routes?: Parameters<typeof toNavigationRoute>[0][] };
+      const best = data.routes?.[0];
+      if (data.code !== 'Ok' || !best) throw new Error(`OSRM: ${data.code}`);
+      // Mesmo ajuste das estimativas: motos ~15% mais rápidas que o perfil de carro do OSRM.
+      const result = toNavigationRoute(best, mode === 'MOTORCYCLE' ? 0.85 : 1);
+      await this.cache.set(key, result, 120);
+      return result;
+    } catch (error) {
+      this.logger.warn(`Navegação: serviço de rotas indisponível (${(error as Error).message}); usando linha reta.`);
+      const estimate = await this.fallback.route(origin, destination, mode);
+      const distanceM = Math.round(estimate.distanceKm * 1000);
+      const durationS = estimate.durationMin * 60;
+      return {
+        distanceM,
+        durationS,
+        geometry: [
+          [origin.lat, origin.lng],
+          [destination.lat, destination.lng],
+        ],
+        steps: [
+          { instruction: 'Siga em direção ao destino', type: 'depart', modifier: null, name: '', distanceM, durationS, location: [origin.lat, origin.lng] },
+          { instruction: 'Você chegou ao destino', type: 'arrive', modifier: null, name: '', distanceM: 0, durationS: 0, location: [destination.lat, destination.lng] },
+        ],
+        provider: 'straight',
+      };
+    }
   }
 
   /** Distância em linha reta (sem custo) — para filtros e pré-seleção. */

@@ -6,6 +6,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import {
   AuthProvider,
+  useBrandFonts,
   ErrorView,
   themeColors,
   OfflineBanner,
@@ -30,6 +31,9 @@ void SplashScreen.preventAutoHideAsync();
 const PUSH_CHANNELS: PushChannel[] = [{ id: 'promotions', name: 'Promoções', importance: 'DEFAULT' }];
 
 export default function RootLayout() {
+  // A tela de abertura continua até a fonte da marca (Nunito) carregar.
+  const fontsReady = useBrandFonts();
+  if (!fontsReady) return null;
   return (
     <QueryProvider>
       <ToastProvider>

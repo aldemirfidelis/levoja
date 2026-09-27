@@ -84,7 +84,7 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <BrandLogo className="text-3xl font-extrabold text-brand-500" />
+          <BrandLogo className="text-5xl" cut="var(--lj-bg)" />
           <p className="mt-1 text-sm text-muted">Painel administrativo — acesso restrito à equipe</p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">

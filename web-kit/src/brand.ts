@@ -4,17 +4,26 @@ import { brandPalette, isHexColor, type TenantBranding } from '@levoja/shared';
 export const DEFAULT_BRANDING: TenantBranding = {
   appName: 'LevoJá',
   logoUrl: null,
-  primaryColor: '#FF5A1F',
+  primaryColor: '#FF5A1A',
   supportEmail: null,
   supportPhone: null,
 };
+
+/** Laranja da marca anterior: tenants criados antes da nova marca ainda o têm salvo e usam a paleta padrão. */
+const LEGACY_DEFAULT_COLORS = ['#ff5a1f'];
+
+/** A cor é a da marca LevoJá (atual ou anterior)? Nesse caso vale a paleta desenhada do tema. */
+export function isDefaultBrandColor(color: string | null | undefined): boolean {
+  const value = color?.toLowerCase();
+  return !value || value === DEFAULT_BRANDING.primaryColor.toLowerCase() || LEGACY_DEFAULT_COLORS.includes(value);
+}
 
 /**
  * CSS que troca a paleta da marca (tons 50–900) pela cor do tenant. `html:root` vence a
  * declaração do tema compartilhado independentemente da ordem das folhas de estilo.
  */
 export function brandCss(primaryColor: string | null | undefined): string {
-  if (!primaryColor || !isHexColor(primaryColor) || primaryColor.toLowerCase() === DEFAULT_BRANDING.primaryColor.toLowerCase()) return '';
+  if (!primaryColor || !isHexColor(primaryColor) || isDefaultBrandColor(primaryColor)) return '';
   const palette = brandPalette(primaryColor);
   const vars = Object.entries(palette)
     .map(([step, color]) => `--color-brand-${step}:${color}`)
@@ -34,7 +43,7 @@ export async function fetchTenantBranding(apiUrl: string, tenant?: string, reval
     return {
       appName: body.appName || DEFAULT_BRANDING.appName,
       logoUrl: body.logoUrl ?? null,
-      primaryColor: body.primaryColor && isHexColor(body.primaryColor) ? body.primaryColor : DEFAULT_BRANDING.primaryColor,
+      primaryColor: body.primaryColor && isHexColor(body.primaryColor) && !isDefaultBrandColor(body.primaryColor) ? body.primaryColor : DEFAULT_BRANDING.primaryColor,
       supportEmail: body.supportEmail ?? null,
       supportPhone: body.supportPhone ?? null,
       webUrl: body.webUrl,

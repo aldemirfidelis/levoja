@@ -4,9 +4,8 @@ import { LoginScreen } from '@levoja/mobile-kit';
 export default function SignIn() {
   return (
     <LoginScreen
-      title="LevoJá Entregador"
+      title="Entregador"
       subtitle="Faça entregas no seu horário e receba via PIX."
-      logo={require('../../../assets/logo.png')}
       onForgot={() => router.push('/esqueci-senha')}
       onRegister={() => router.push('/criar-conta')}
       registerLabel="Quero ser entregador"

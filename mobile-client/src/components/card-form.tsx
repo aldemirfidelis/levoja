@@ -99,12 +99,12 @@ export function CardForm({
 }
 
 function mercadoPagoForm(publicKey: string, amountCents: number, dark: boolean, brand: string): string {
-  const fg = dark ? '#e6edf3' : '#111827';
-  const border = dark ? '#2d3440' : '#e3e6eb';
-  const bg = dark ? '#161b22' : '#ffffff';
+  const fg = dark ? '#EEF0F5' : '#131A2B';
+  const border = dark ? '#2C3549' : '#E8E3DC';
+  const bg = dark ? '#161D2E' : '#FFFFFF';
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <script src="https://sdk.mercadopago.com/js/v2"></script>
-<style>body{font-family:-apple-system,Roboto,sans-serif;margin:0;padding:8px 12px;background:${bg};color:${fg}}
+<style>body{font-family:Nunito,-apple-system,Roboto,sans-serif;margin:0;padding:8px 12px;background:${bg};color:${fg}}
 .f{height:44px;border:1px solid ${border};border-radius:10px;padding:0 10px;margin:6px 0 12px;background:${bg};color:${fg};width:100%;box-sizing:border-box;font-size:16px}
 label{font-size:13px;font-weight:600}button{width:100%;height:48px;border:0;border-radius:10px;background:${brand};color:#fff;font-weight:700;font-size:16px}
 .row{display:flex;gap:10px}.row>div{flex:1}</style></head><body>

@@ -69,7 +69,7 @@ export const SignaturePad = forwardRef<SignaturePadHandle, { height?: number; on
     >
       <Svg width="100%" height="100%">
         {[...paths, current].filter(Boolean).map((d, index) => (
-          <Path key={index} d={d} stroke="#111827" strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          <Path key={index} d={d} stroke="#131A2B" strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
         ))}
       </Svg>
     </View>

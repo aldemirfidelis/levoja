@@ -9,7 +9,7 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
  * IOS_BUNDLE_ID, ANDROID_PACKAGE, APP_BRAND_COLOR (#RRGGBB), APP_ASSETS_DIR (ícones e splash da
  * marca) e EXPO_PUBLIC_TENANT/EXPO_PUBLIC_BRAND_COLOR (tenant e cor usados pelo app em execução).
  */
-const BRAND_COLOR = process.env.APP_BRAND_COLOR ?? process.env.EXPO_PUBLIC_BRAND_COLOR ?? '#FF5A1F';
+const BRAND_COLOR = process.env.APP_BRAND_COLOR ?? process.env.EXPO_PUBLIC_BRAND_COLOR ?? '#FF5A1A';
 const ASSETS = (process.env.APP_ASSETS_DIR ?? './assets').replace(/\/+$/, '');
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
@@ -30,7 +30,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: process.env.ANDROID_PACKAGE ?? 'br.com.levoja.entregador',
     adaptiveIcon: {
-      backgroundColor: '#111827',
+      backgroundColor: '#131A2B',
       foregroundImage: `${ASSETS}/adaptive-foreground.png`,
       monochromeImage: `${ASSETS}/adaptive-monochrome.png`,
     },
@@ -40,7 +40,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     'expo-router',
     'expo-secure-store',
-    ['expo-splash-screen', { backgroundColor: '#111827', image: `${ASSETS}/splash-icon.png`, imageWidth: 120 }],
+    ['expo-splash-screen', { backgroundColor: '#131A2B', image: `${ASSETS}/splash-icon.png`, imageWidth: 120 }],
     [
       'expo-location',
       {
@@ -53,7 +53,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
     ['expo-camera', { cameraPermission: 'A câmera é usada para ler o QR Code do cliente, fotografar a entrega e enviar seus documentos.', recordAudioAndroid: false, barcodeScannerEnabled: true }],
     ['expo-image-picker', { photosPermission: 'Permita o acesso às fotos para enviar seus documentos.', cameraPermission: 'Permita o uso da câmera para fotografar seus documentos.', microphonePermission: false }],
-    ['expo-notifications', { icon: `${ASSETS}/notification-icon.png`, color: BRAND_COLOR }],
+    // O toque das ofertas também é o som do push (canal "offers") no build do app.
+    ['expo-notifications', { icon: `${ASSETS}/notification-icon.png`, color: BRAND_COLOR, sounds: ['./assets/sounds/offer.wav'] }],
+    ['expo-audio', { microphonePermission: false, enableBackgroundPlayback: true }],
   ],
   experiments: { typedRoutes: false, reactCompiler: true },
   extra: { eas: { projectId: process.env.EAS_PROJECT_ID } },

@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useRef, useState } from 'react';
-import { Plus, Trash2, Upload, X } from 'lucide-react';
+import { Plus, Star, Trash2, Upload, X } from 'lucide-react';
 import { api } from '@levoja/web-kit/client';
 import { Button, Checkbox, Dialog, errorMessage, Input, Select, Textarea, useToast } from '@levoja/web-kit/ui';
 import { MoneyInput } from './money-input';
@@ -28,6 +28,7 @@ export interface ProductView {
   isRegulated: boolean;
   requiresPrescription: boolean;
   minimumAge: number | null;
+  isFeatured: boolean;
   images: { id: string; url: string }[];
   optionGroups: { id: string; name: string; minSelect: number; maxSelect: number; options: { id: string; name: string; priceDeltaCents: number; isActive: boolean }[] }[];
   comboItems: { productId: string; name: string; quantity: number }[];
@@ -77,6 +78,7 @@ export function ProductEditor({
     isRegulated: product?.isRegulated ?? false,
     requiresPrescription: product?.requiresPrescription ?? false,
     minimumAge: product?.minimumAge ?? '',
+    isFeatured: product?.isFeatured ?? false,
   });
   const [groups, setGroups] = useState<GroupDraft[]>(
     product?.optionGroups.map((group) => ({
@@ -118,6 +120,7 @@ export function ProductEditor({
         isRegulated: form.isRegulated,
         requiresPrescription: form.requiresPrescription,
         minimumAge: form.minimumAge === '' ? null : Number(form.minimumAge),
+        isFeatured: form.isFeatured,
         optionGroups: groups.map((group) => ({ ...group, options: group.options.map((option) => ({ ...option, priceDeltaCents: option.priceDeltaCents ?? 0 })) })),
         ...(form.type === 'COMBO' ? { comboItems } : {}),
       };
@@ -183,6 +186,25 @@ export function ProductEditor({
           <Input label="Código de barras" value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} />
           <Input label="Peso (g)" type="number" min={0} value={form.weightGrams} onChange={(e) => setForm({ ...form, weightGrams: e.target.value as never })} />
           <Input label="Idade mínima" type="number" min={0} max={21} hint="Ex.: 18 para bebidas alcoólicas" value={form.minimumAge} onChange={(e) => setForm({ ...form, minimumAge: e.target.value as never })} />
+        </div>
+
+        {/* Destaque: aparece antes dos outros produtos na vitrine da tela inicial do app. */}
+        <div className={'rounded-xl border p-4 ' + (form.isFeatured ? 'border-gema/60 bg-gema/10' : 'border-border')}>
+          <Checkbox
+            checked={form.isFeatured}
+            onChange={(e) => setForm({ ...form, isFeatured: e.target.checked })}
+            label={
+              <span className="flex flex-col gap-0.5">
+                <span className="flex items-center gap-1.5 font-bold">
+                  <Star className={'h-4 w-4 ' + (form.isFeatured ? 'fill-gema text-gema' : 'text-muted')} aria-hidden /> Destacar na tela inicial do app
+                </span>
+                <span className="text-xs text-muted">Só produtos em destaque aparecem na tela inicial do app, com foto grande, a sua loja e seus cupons. Até 3 por loja.</span>
+                {form.isFeatured && images.length === 0 && (
+                  <span className="text-xs font-semibold text-warning">{product ? 'Adicione uma foto abaixo: sem foto o produto não aparece na tela inicial.' : 'Depois de salvar, adicione uma foto: sem foto o produto não aparece na tela inicial.'}</span>
+                )}
+              </span>
+            }
+          />
         </div>
 
         <div className="grid gap-3 rounded-xl bg-surface-2 p-4 sm:grid-cols-2">
@@ -270,7 +292,10 @@ export function ProductEditor({
 
         {product && (
           <fieldset>
-            <legend className="mb-2 text-sm font-semibold">Fotos</legend>
+            <legend className="mb-1 text-sm font-semibold">Fotos</legend>
+            <p className="mb-2 text-xs text-muted">
+              A primeira foto é a principal: é ela que aparece no cardápio e, se o produto estiver em destaque, na tela inicial do app. De preferência na horizontal e bem iluminada.
+            </p>
             <div className="flex flex-wrap gap-3">
               {images.map((image) => (
                 <div key={image.id} className="relative">

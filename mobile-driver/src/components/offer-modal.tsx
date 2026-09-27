@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ITEM_CATEGORY_LABELS, VEHICLE_TYPE_LABELS } from '@levoja/shared';
 import { api, Badge, Button, Chip, formatBRL, radius, Row, space, Stack, Text, useCountdown, useColors, useInvalidate, useToast } from '@levoja/mobile-kit';
+import { startOfferAlert, stopOfferAlert } from '@/lib/offer-alert';
 import type { Offer } from '@/lib/types';
 
 const DECLINE_REASONS = ['Muito longe', 'Valor baixo', 'Vou encerrar o turno', 'Veículo inadequado'];
@@ -16,12 +17,22 @@ export function OfferModal({ offer }: { offer: Offer | null }) {
   const countdown = useCountdown(offer?.expiresAt ?? null);
   const [busy, setBusy] = useState<'accept' | 'decline' | null>(null);
   const [declining, setDeclining] = useState(false);
+  const [muted, setMuted] = useState(false);
   const initialSeconds = useMemo(() => Math.max(1, offer?.secondsLeft ?? 30), [offer?.id]);
 
   useEffect(() => {
     setDeclining(false);
+    setMuted(false);
     if (offer) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
   }, [offer?.id]);
+
+  // Toque + vibração enquanto a oferta estiver na tela (para ao aceitar, recusar, expirar ou silenciar).
+  const ringing = !!offer && !muted && !countdown?.expired;
+  useEffect(() => {
+    if (!ringing) return;
+    void startOfferAlert();
+    return () => stopOfferAlert();
+  }, [ringing, offer?.id]);
 
   if (!offer) return null;
   const fraction = countdown ? Math.min(1, countdown.seconds / initialSeconds) : 0;
@@ -61,7 +72,10 @@ export function OfferModal({ offer }: { offer: Offer | null }) {
           </View>
           <Row justify="space-between">
             <Text variant="heading">{offer.route ? `Rota com ${offer.route.stops} entregas` : 'Nova entrega'}</Text>
-            <Badge label={countdown?.expired ? 'Expirada' : `${countdown?.seconds ?? 0}s`} tone={countdown && countdown.seconds <= 10 ? 'danger' : 'brand'} />
+            <Row gap={2}>
+              {ringing ? <Chip label="Silenciar" onPress={() => setMuted(true)} /> : null}
+              <Badge label={countdown?.expired ? 'Expirada' : `${countdown?.seconds ?? 0}s`} tone={countdown && countdown.seconds <= 10 ? 'danger' : 'brand'} />
+            </Row>
           </Row>
           <Text variant="display" tone="success">
             {formatBRL(offer.payoutCents)}

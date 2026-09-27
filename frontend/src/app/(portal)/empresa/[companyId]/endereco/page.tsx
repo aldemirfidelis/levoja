@@ -88,11 +88,19 @@ function OpeningHoursEditor() {
 export default function CompanyAddressPage() {
   const { company, reload } = useCompany();
   const toast = useToast();
+  const located = company.address?.lat != null && company.address?.lng != null;
   return (
     <div className="space-y-6">
+      {!located && (
+        <p className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-fg" role="status">
+          <strong>Sua loja ainda não aparece para os clientes.</strong> Marque a localização do estabelecimento no mapa abaixo e salve: é por ela que o
+          app encontra quem está perto e calcula as entregas.
+        </p>
+      )}
       <Card title="Endereço do estabelecimento">
         <AddressForm
           initial={company.address}
+          requireLocation
           onSubmit={async (address) => {
             await api.put(`companies/${company.id}/address`, address);
             toast.success('Endereço salvo.');

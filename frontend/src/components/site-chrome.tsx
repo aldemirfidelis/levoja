@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { Menu, X } from 'lucide-react';
-import { BrandLogo, cn, useBrand } from '@levoja/web-kit/ui';
+import { BrandLogo, BrandSlogan, cn, useBrand } from '@levoja/web-kit/ui';
 
 const NAV = [
   { href: '/como-funciona', label: 'Como funciona' },
@@ -18,7 +18,7 @@ const NAV = [
 export function Logo({ className }: { className?: string }) {
   const brand = useBrand();
   return (
-    <Link href="/" className={cn('text-2xl font-extrabold tracking-tight text-brand-500', className)} aria-label={`${brand.appName} — página inicial`}>
+    <Link href="/" className={cn('inline-flex text-2xl', className)} aria-label={`${brand.appName} — página inicial`}>
       <BrandLogo />
     </Link>
   );
@@ -49,7 +49,7 @@ export function SiteHeader() {
           <Link href="/entrar" className="rounded-lg px-4 py-2 text-sm font-semibold text-fg hover:bg-surface-2">
             Entrar
           </Link>
-          <Link href="/cadastro" className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600">
+          <Link href="/cadastro" className="rounded-xl bg-cta-gradient px-4 py-2 text-sm font-black italic text-white shadow-[0_6px_14px_rgba(240,74,26,0.3)] hover:brightness-105">
             Criar conta
           </Link>
         </div>
@@ -68,7 +68,7 @@ export function SiteHeader() {
             <Link href="/entrar" onClick={() => setOpen(false)} className="rounded-lg border border-border px-4 py-3 text-center font-semibold">
               Entrar
             </Link>
-            <Link href="/cadastro" onClick={() => setOpen(false)} className="rounded-lg bg-brand-500 px-4 py-3 text-center font-semibold text-white">
+            <Link href="/cadastro" onClick={() => setOpen(false)} className="rounded-xl bg-cta-gradient px-4 py-3 text-center font-black italic text-white">
               Criar conta
             </Link>
           </div>
@@ -120,7 +120,8 @@ export function SiteFooter() {
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-5">
         <div className="md:col-span-1">
           <Logo />
-          <p className="mt-3 text-sm text-muted">Marketplace, delivery e logística sob demanda.</p>
+          <BrandSlogan className="mt-3 block" />
+          <p className="mt-2 text-sm text-muted">Marketplace, delivery e logística sob demanda.</p>
         </div>
         {FOOTER.map((group) => (
           <div key={group.title}>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Linking, Platform, View } from 'react-native';
+import { View } from 'react-native';
 import { router, Stack as RouterStack, useLocalSearchParams } from 'expo-router';
 import { useKeepAwake } from 'expo-keep-awake';
 import { DELIVERY_STATUS_LABELS, ITEM_CATEGORY_LABELS, PROOF_METHOD_LABELS, type DeliveryStatus } from '@levoja/shared';
@@ -28,6 +28,7 @@ import {
 import { usePersistentApi } from '@/lib/cache';
 import { useDriver } from '@/lib/driver';
 import { lastKnownPoint } from '@/lib/location';
+import { openExternalNavigation } from '@/lib/navigation';
 import type { DeliveryAction } from '@/lib/outbox';
 import { effectiveStatus, pendingFor } from '@/lib/pending';
 import type { DriverDelivery, Stop } from '@/lib/types';
@@ -47,14 +48,8 @@ function KeepAwake() {
   return null;
 }
 
-/** Abre a navegação no app de mapas do aparelho (Google Maps, Waze, Apple Maps...). */
-function navigate(stop: Stop) {
-  const label = encodeURIComponent(`${stop.street}, ${stop.number}`);
-  const url = Platform.OS === 'ios' ? `http://maps.apple.com/?daddr=${stop.lat},${stop.lng}&q=${label}` : `geo:${stop.lat},${stop.lng}?q=${stop.lat},${stop.lng}(${label})`;
-  Linking.openURL(url).catch(() => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${stop.lat},${stop.lng}`));
-}
-
 function StopCard({ title, stop, active, onNavigate }: { title: string; stop: Stop; active: boolean; onNavigate: () => void }) {
+  // "Navegar" abre a navegação do próprio app; "Outro app" continua disponível (Waze, Google Maps...).
   const colors = useColors();
   return (
     <Card style={{ borderColor: active ? colors.brand : colors.border, borderWidth: active ? 2 : 1 }}>
@@ -63,7 +58,12 @@ function StopCard({ title, stop, active, onNavigate }: { title: string; stop: St
           <Text variant="label" tone={active ? 'brand' : 'muted'}>
             {title.toUpperCase()}
           </Text>
-          {active ? <Button title="Navegar" icon="navigation" size="sm" onPress={onNavigate} /> : null}
+          {active ? (
+            <Row gap={2}>
+              <Button title="Outro app" variant="ghost" size="sm" onPress={() => openExternalNavigation(stop)} />
+              <Button title="Navegar" icon="navigation" size="sm" onPress={onNavigate} />
+            </Row>
+          ) : null}
         </Row>
         {stop.name ? <Text weight="700">{stop.name}</Text> : null}
         <Text>
@@ -191,8 +191,8 @@ export default function DeliveryScreen() {
         />
       ) : null}
 
-      <StopCard title="Coleta" stop={data.pickup} active={active && beforePickup} onNavigate={() => navigate(data.pickup)} />
-      <StopCard title="Entrega" stop={data.dropoff} active={active && !beforePickup} onNavigate={() => navigate(data.dropoff)} />
+      <StopCard title="Coleta" stop={data.pickup} active={active && beforePickup} onNavigate={() => router.push({ pathname: '/navegacao/[id]', params: { id: data.id, to: 'pickup' } })} />
+      <StopCard title="Entrega" stop={data.dropoff} active={active && !beforePickup} onNavigate={() => router.push({ pathname: '/navegacao/[id]', params: { id: data.id, to: 'dropoff' } })} />
 
       <Card>
         <Stack gap={2}>
@@ -237,7 +237,18 @@ export default function DeliveryScreen() {
 
       {status === 'DRIVER_ASSIGNED' ? <Button title="Cheguei na coleta" size="lg" loading={busy === 'arrived-pickup'} onPress={() => run('arrived-pickup')} /> : null}
       {status === 'AT_PICKUP' ? <Button title="Confirmar coleta" icon="check" size="lg" loading={busy === 'picked-up'} onPress={() => run('picked-up')} /> : null}
-      {status === 'PICKED_UP' ? <Button title="Iniciar rota de entrega" icon="route" size="lg" loading={busy === 'start-route'} onPress={() => run('start-route')} /> : null}
+      {status === 'PICKED_UP' ? (
+        <Button
+          title="Iniciar rota de entrega"
+          icon="route"
+          size="lg"
+          loading={busy === 'start-route'}
+          onPress={async () => {
+            await run('start-route');
+            router.push({ pathname: '/navegacao/[id]', params: { id: data.id, to: 'dropoff' } });
+          }}
+        />
+      ) : null}
       {status === 'IN_TRANSIT' ? <Button title="Cheguei no destino" size="lg" loading={busy === 'arrived-dropoff'} onPress={() => run('arrived-dropoff')} /> : null}
       {status === 'AT_DROPOFF' || status === 'IN_TRANSIT' || status === 'PICKED_UP' ? (
         <Button title="Concluir entrega" icon="flag" variant={status === 'AT_DROPOFF' ? 'success' : 'secondary'} size="lg" onPress={() => router.push(`/comprovante/${data.id}`)} />

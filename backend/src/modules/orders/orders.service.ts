@@ -12,6 +12,7 @@ import { canTransitionOrder, isAdult, ORDER_ACTIVE_STATUSES, ORDER_CUSTOMER_CANC
 import { PrismaService, Tx } from '../../infra/prisma/prisma.service';
 import { CryptoService } from '../../infra/crypto/crypto.service';
 import { JobsService } from '../../infra/jobs/jobs.service';
+import { StorageService } from '../../infra/storage/storage.service';
 import { AuditService } from '../audit/audit.service';
 import { SettingsService } from '../settings/settings.service';
 import { PricingService } from '../pricing/pricing.service';
@@ -66,7 +67,8 @@ const MAX_SCHEDULE_DAYS = 7;
 const DISPATCH_BUFFER_MIN = 5;
 
 const orderInclude = {
-  items: true,
+  // Foto principal do produto: a loja confere o item pela imagem na hora de montar o pedido.
+  items: { include: { product: { select: { images: { orderBy: { sortOrder: 'asc' }, take: 1, select: { fileKey: true } } } } } },
   company: { select: { id: true, tradeName: true, slug: true, logoKey: true, phone: true, address: true } },
   customer: { select: { id: true, user: { select: { id: true, name: true, phone: true } } } },
   statusHistory: { orderBy: { createdAt: 'asc' } },
@@ -111,6 +113,7 @@ export class OrdersService implements OnModuleInit {
     private readonly coupons: CouponsService,
     private readonly events: EventEmitter2,
     private readonly cities: CitiesService,
+    private readonly storage: StorageService,
   ) {}
 
   onModuleInit(): void {
@@ -727,6 +730,7 @@ export class OrdersService implements OnModuleInit {
         id: item.id,
         productId: item.productId,
         name: item.productName,
+        imageUrl: this.storage.publicUrl(item.product?.images[0]?.fileKey),
         quantity: item.quantity,
         unitPriceCents: item.unitPriceCents,
         totalCents: item.totalCents,

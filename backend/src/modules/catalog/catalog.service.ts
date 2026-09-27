@@ -18,6 +18,8 @@ export const productInclude = {
 export type ProductWithRelations = Prisma.ProductGetPayload<{ include: typeof productInclude }>;
 
 const MAX_IMAGES = 8;
+/** Produtos em destaque por loja (aparecem primeiro na vitrine da tela inicial do app). */
+export const FEATURED_PER_STORE = 3;
 
 /** Preço vigente: promocional dentro da janela de validade, senão o preço cheio. */
 export function effectivePrice(product: { priceCents: number; promoPriceCents: number | null; promoStartsAt: Date | null; promoEndsAt: Date | null }, at = new Date()): number {
@@ -215,6 +217,82 @@ export class CatalogService {
     return this.getProduct(companyId, id);
   }
 
+  /**
+   * Cópia de um produto para a loja ajustar só o que muda (ex.: "X-Burger" → "X-Bacon").
+   * Copia dados, variações/adicionais, itens do combo e as fotos (arquivos novos: apagar a foto de
+   * um não afeta o outro). A cópia nasce INATIVA, sem destaque, sem SKU/código de barras (identificam
+   * o original) e com estoque zerado; fica logo abaixo do original na lista (mesma ordem, nome + "(cópia)").
+   */
+  async duplicateProduct(company: { id: string; tenantId: string }, id: string) {
+    await this.subscriptions.assertLimit(company.tenantId, company.id, 'maxProducts', await this.prisma.product.count({ where: { companyId: company.id, deletedAt: null } }));
+    const source = await this.findProduct(company.id, id);
+    const copy = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.product.create({
+        data: {
+          tenantId: source.tenantId,
+          companyId: source.companyId,
+          categoryId: source.categoryId,
+          type: source.type,
+          name: `${source.name.slice(0, 112)} (cópia)`,
+          description: source.description,
+          priceCents: source.priceCents,
+          promoPriceCents: source.promoPriceCents,
+          promoStartsAt: source.promoStartsAt,
+          promoEndsAt: source.promoEndsAt,
+          trackStock: source.trackStock,
+          stockQuantity: 0,
+          weightGrams: source.weightGrams,
+          lengthCm: source.lengthCm,
+          widthCm: source.widthCm,
+          heightCm: source.heightCm,
+          status: 'INACTIVE',
+          isRegulated: source.isRegulated,
+          requiresPrescription: source.requiresPrescription,
+          minimumAge: source.minimumAge,
+          sortOrder: source.sortOrder,
+          isFeatured: false,
+        },
+      });
+      for (const group of source.optionGroups) {
+        await tx.productOptionGroup.create({
+          data: {
+            productId: created.id,
+            name: group.name,
+            minSelect: group.minSelect,
+            maxSelect: group.maxSelect,
+            sortOrder: group.sortOrder,
+            options: {
+              create: group.options.map((option) => ({
+                name: option.name,
+                priceDeltaCents: option.priceDeltaCents,
+                trackStock: option.trackStock,
+                stockQuantity: 0,
+                isActive: option.isActive,
+                sortOrder: option.sortOrder,
+              })),
+            },
+          },
+        });
+      }
+      if (source.comboItems.length) {
+        await tx.comboItem.createMany({ data: source.comboItems.map((item) => ({ comboId: created.id, productId: item.productId, quantity: item.quantity })) });
+      }
+      return created;
+    });
+
+    for (const image of source.images) {
+      const object = await this.storage.get(image.fileKey);
+      if (!object) continue;
+      const body = Buffer.concat(await object.stream.toArray());
+      const ext = image.fileKey.split('.').pop() ?? 'jpg';
+      const key = await this.storage.put(`public/products/${company.id}/${copy.id}/${randomUUID()}.${ext}`, body, object.contentType ?? 'image/jpeg');
+      await this.prisma.productImage.create({ data: { productId: copy.id, fileKey: key, sortOrder: image.sortOrder } });
+    }
+
+    await this.audit.log({ action: 'catalog.product.duplicate', entityType: 'Product', entityId: copy.id, after: { name: copy.name, sourceId: source.id } });
+    return this.getProduct(company.id, copy.id);
+  }
+
   async removeImage(companyId: string, id: string, imageId: string) {
     const product = await this.findProduct(companyId, id);
     const image = product.images.find((item) => item.id === imageId);
@@ -249,6 +327,10 @@ export class CatalogService {
     if (dto.sku) {
       const duplicate = await this.prisma.product.findFirst({ where: { companyId, sku: dto.sku, deletedAt: null, NOT: productId ? { id: productId } : undefined } });
       if (duplicate) throw new ConflictException('Já existe um produto com este SKU.');
+    }
+    if (dto.isFeatured) {
+      const others = await this.prisma.product.count({ where: { companyId, isFeatured: true, deletedAt: null, NOT: productId ? { id: productId } : undefined } });
+      if (others >= FEATURED_PER_STORE) throw new BadRequestException(`Você pode destacar até ${FEATURED_PER_STORE} produtos. Tire o destaque de outro antes.`);
     }
   }
 
@@ -304,6 +386,7 @@ export class CatalogService {
       requiresPrescription: product.requiresPrescription,
       minimumAge: product.minimumAge,
       sortOrder: product.sortOrder,
+      isFeatured: product.isFeatured,
       images: product.images.map((image) => ({ id: image.id, url: this.storage.publicUrl(image.fileKey) })),
       optionGroups: product.optionGroups.map((group) => ({
         id: group.id,

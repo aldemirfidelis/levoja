@@ -20,13 +20,13 @@ export default function CompanyBrandPage() {
   const { company, can } = useCompany();
   const toast = useToast();
   const { data, error, isLoading, refetch } = useApi<BrandView>(`companies/${company.id}/brand`);
-  const [color, setColor] = useState('#FF5A1F');
+  const [color, setColor] = useState('#FF5A1A');
   const [domain, setDomain] = useState('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (data) {
-      setColor(data.brandColor ?? '#FF5A1F');
+      setColor(data.brandColor ?? '#FF5A1A');
       setDomain(data.customDomain ?? '');
     }
   }, [data]);
@@ -77,7 +77,7 @@ export default function CompanyBrandPage() {
               <label className="block text-sm">
                 <span className="mb-1 block font-medium text-fg">Cor da marca</span>
                 <span className="flex items-center gap-2">
-                  <input type="color" aria-label="Cor da marca" value={palette ? color : '#FF5A1F'} onChange={(event) => setColor(event.target.value.toUpperCase())} className="h-10 w-14 rounded border border-border bg-surface" />
+                  <input type="color" aria-label="Cor da marca" value={palette ? color : '#FF5A1A'} onChange={(event) => setColor(event.target.value.toUpperCase())} className="h-10 w-14 rounded border border-border bg-surface" />
                   <Input aria-label="Cor em hexadecimal" value={color} onChange={(event) => setColor(event.target.value)} />
                 </span>
               </label>
@@ -99,7 +99,7 @@ export default function CompanyBrandPage() {
         </form>
         <Card title="Prévia">
           <div className="overflow-hidden rounded-lg border border-border">
-            <div className="flex items-center gap-3 p-4 text-white" style={{ background: palette?.[500] ?? '#FF5A1F' }}>
+            <div className="flex items-center gap-3 p-4 text-white" style={{ background: palette?.[500] ?? '#FF5A1A' }}>
               {data.logoUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={data.logoUrl} alt="" className="h-10 w-10 rounded-full bg-white object-cover" />

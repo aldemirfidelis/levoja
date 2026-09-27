@@ -61,7 +61,10 @@ export function ChatThread({ conversationId, height = 420 }: { conversationId: s
   const bottom = useRef<HTMLDivElement>(null);
 
   useRealtime({ 'chat.message': (payload: { conversationId?: string }) => payload?.conversationId === conversationId && void refetch() });
-  useEffect(() => bottom.current?.scrollIntoView({ block: 'end' }), [data?.messages.length]);
+  // Corpo em bloco: em Chromium recente scrollIntoView devolve uma Promise, e o React a trataria como limpeza.
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ block: 'end' });
+  }, [data?.messages.length]);
   useEffect(() => {
     if (!data?.conversation.unread) return;
     void api.post(`conversations/${conversationId}/read`).then(() => client.invalidateQueries({ predicate: (query) => String(query.queryKey[0]).startsWith('conversations') || String(query.queryKey[0]).includes('/conversations') }));

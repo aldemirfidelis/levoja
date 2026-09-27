@@ -66,9 +66,31 @@ export interface Product {
   isRegulated: boolean;
   requiresPrescription: boolean;
   minimumAge: number | null;
+  /** Destaque escolhido pela loja (aparece primeiro na tela inicial e no topo do cardápio). */
+  isFeatured?: boolean;
   images: { id: string; url: string | null }[];
   optionGroups: { id: string; name: string; minSelect: number; maxSelect: number; options: ProductOption[] }[];
   comboItems: { productId: string; name: string; quantity: number }[];
+}
+
+/** Loja resumida que acompanha um produto (vitrine da tela inicial e tela do produto). */
+export interface ProductStore {
+  id: string;
+  slug: string;
+  tradeName: string;
+  logoUrl: string | null;
+  segment: { slug: string; name: string };
+  isOpenNow: boolean;
+  ratingAvg?: number;
+  ratingCount?: number;
+  estimatedMinutes?: { min: number; max: number } | null;
+  distanceKm?: number | null;
+}
+
+/** Item da vitrine de produtos (GET feed/products). */
+export interface FeedItem {
+  product: Product;
+  store: ProductStore;
 }
 
 export interface StoreDetail {

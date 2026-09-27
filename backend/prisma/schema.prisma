@@ -938,6 +938,8 @@ model Product {
   /// Idade mínima do comprador (ex.: 18 para bebidas alcoólicas).
   minimumAge           Int?
   sortOrder            Int           @default(0)
+  /// Destaque escolhido pela loja: aparece primeiro na vitrine da tela inicial do app (limite por loja).
+  isFeatured           Boolean       @default(false)
   deletedAt            DateTime?
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt

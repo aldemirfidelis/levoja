@@ -103,7 +103,7 @@ export async function startTracking(): Promise<TrackingMode> {
           foregroundService: {
             notificationTitle: 'Você está online',
             notificationBody: 'Sua localização é usada para ofertas e para o acompanhamento das entregas.',
-            notificationColor: '#FF5A1F',
+            notificationColor: '#FF5A1A',
             killServiceOnDestroy: false,
           },
         });

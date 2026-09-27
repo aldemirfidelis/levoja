@@ -6,7 +6,7 @@ import { PricingController } from './pricing/pricing.controller';
 import { CatalogService } from './catalog/catalog.service';
 import { ServiceAreasService } from './catalog/service-areas.service';
 import { StoresService } from './catalog/stores.service';
-import { CompanyCatalogController, StoresController } from './catalog/catalog.controller';
+import { CompanyCatalogController, ProductFeedController, StoresController } from './catalog/catalog.controller';
 import { CartService } from './cart/cart.service';
 import { CartController } from './cart/cart.controller';
 import { OrdersService } from './orders/orders.service';
@@ -35,6 +35,7 @@ import { CouponsService } from './coupons/coupons.service';
   controllers: [
     PricingController,
     StoresController,
+    ProductFeedController,
     CompanyCatalogController,
     CartController,
     CustomerOrdersController,

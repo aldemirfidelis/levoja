@@ -24,6 +24,8 @@ export interface NotifyInput {
   app?: 'CUSTOMER' | 'DRIVER' | 'COMPANY' | 'ADMIN';
   /** Canal Android do push. */
   channelId?: string;
+  /** Arquivo de som do push (incluído no app, ex.: "offer.wav"). */
+  sound?: string;
   ttlSeconds?: number;
 }
 
@@ -38,6 +40,7 @@ interface DeliveryJob {
   email?: Omit<MailMessage, 'to'>;
   app?: NotifyInput['app'];
   channelId?: string;
+  sound?: string;
   ttlSeconds?: number;
 }
 
@@ -99,6 +102,7 @@ export class NotificationsService implements OnModuleInit {
         email: input.email,
         app: input.app,
         channelId: input.channelId,
+        sound: input.sound,
         ttlSeconds: input.ttlSeconds,
       });
     }
@@ -124,6 +128,7 @@ export class NotificationsService implements OnModuleInit {
         body: job.body,
         data: job.data,
         channelId: job.channelId,
+        sound: job.sound,
         ttlSeconds: job.ttlSeconds,
       });
       if (invalidTokens.length) await this.prisma.deviceToken.deleteMany({ where: { token: { in: invalidTokens } } });

@@ -113,7 +113,7 @@ function mix(hex: string, target: [number, number, number], weight: number): str
  * própria cor; os claros misturam branco e os escuros, preto.
  */
 export function brandPalette(hex: string): Record<50 | 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900, string> {
-  const base = isHexColor(hex) ? hex.toLowerCase() : '#ff5a1f';
+  const base = isHexColor(hex) ? hex.toLowerCase() : '#ff5a1a';
   const white: [number, number, number] = [255, 255, 255];
   const black: [number, number, number] = [0, 0, 0];
   return {

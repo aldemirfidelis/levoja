@@ -18,24 +18,24 @@ export default async function HomePage() {
 
   return (
     <>
-      <section className="relative overflow-hidden bg-gradient-to-br from-brand-500 to-brand-700 px-4 py-20 text-white sm:px-6 sm:py-28">
+      <section className="relative overflow-hidden bg-gradient-to-br from-brand-500 to-brand-600 px-4 py-20 text-white sm:px-6 sm:py-28">
         <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-2">
           <div>
             <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-sm font-medium">
               <MapPin className="h-4 w-4" aria-hidden /> Entregas na sua cidade, em minutos
             </p>
-            <h1 className="text-4xl font-extrabold leading-tight tracking-tight sm:text-6xl">Tudo o que você precisa, entregue já.</h1>
+            <h1 className="font-display text-4xl leading-tight sm:text-6xl">Tudo o que você precisa, entregue já.</h1>
             <p className="mt-6 max-w-xl text-lg text-white/90">
               Peça comida, remédios, mercado e produtos de lojas perto de você — ou envie documentos e encomendas com um entregador em poucos toques.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/entregas/nova" className="inline-flex h-12 items-center rounded-xl bg-white px-6 font-semibold text-brand-700 hover:bg-white/90">
+              <Link href="/entregas/nova" className="inline-flex h-[50px] items-center rounded-2xl bg-white px-6 font-black italic text-brand-600 shadow-[0_6px_14px_rgba(0,0,0,0.15)] hover:bg-white/90">
                 Pedir uma entrega
               </Link>
-              <Link href="/cadastro/entregador" className="inline-flex h-12 items-center rounded-xl border border-white/40 px-6 font-semibold hover:bg-white/10">
+              <Link href="/cadastro/entregador" className="inline-flex h-[50px] items-center rounded-2xl border border-white/40 px-6 font-extrabold hover:bg-white/10">
                 Quero ser entregador
               </Link>
-              <Link href="/cadastro/empresa" className="inline-flex h-12 items-center rounded-xl border border-white/40 px-6 font-semibold hover:bg-white/10">
+              <Link href="/cadastro/empresa" className="inline-flex h-[50px] items-center rounded-2xl border border-white/40 px-6 font-extrabold hover:bg-white/10">
                 Cadastrar minha empresa
               </Link>
             </div>

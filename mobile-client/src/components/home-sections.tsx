@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Image, Pressable, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { describeCoupon, ORDER_STATUS_LABELS } from '@levoja/shared';
-import { api, Button, Card, formatBRL, formatDay, Icon, radius, Row, space, Text, useApi, useColors, useInvalidate, useToast } from '@levoja/mobile-kit';
+import { api, BrandGradient, Button, Card, formatBRL, formatDay, Icon, radius, Row, space, Text, useApi, useColors, useInvalidate, useToast } from '@levoja/mobile-kit';
 import { CouponCard } from '@/components/coupon-card';
-import type { HomeData, RecentOrder, StoreCard } from '@/lib/types';
+import type { AvailableCoupon, HomeData, RecentOrder, StoreCard } from '@/lib/types';
 
 function SectionHeader({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
   return (
@@ -40,16 +40,20 @@ function StoreTile({ store, badge }: { store: StoreCard; badge?: string }) {
       style={({ pressed }) => ({ width: 132, gap: 6, opacity: pressed ? 0.7 : store.isOpenNow && !outside ? 1 : 0.55 })}
     >
       <Logo uri={store.logoUrl} size={132} />
-      {badge ? (
-        <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: colors.brand, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
-          <Text variant="caption" weight="700" style={{ color: colors.onBrand }}>
-            {badge}
-          </Text>
-        </View>
-      ) : null}
       <Text weight="600" numberOfLines={1}>
         {store.tradeName}
       </Text>
+      {/* Desconto em linha pequena e verde, embaixo do logo (sem cobrir a marca da loja). */}
+      {badge ? (
+        <Row gap={1} align="flex-start">
+          <View style={{ marginTop: 2 }}>
+            <Icon name="coupon" size={13} color={colors.success} />
+          </View>
+          <Text variant="caption" weight="800" numberOfLines={2} style={{ color: colors.success, flexShrink: 1 }}>
+            {badge}
+          </Text>
+        </Row>
+      ) : null}
       <Text variant="caption" tone="muted" numberOfLines={1}>
         {outside ? 'Fora da sua região' : !store.isOpenNow ? 'Fechada' : store.estimatedMinutes ? `${store.estimatedMinutes.min}-${store.estimatedMinutes.max} min` : store.segment.name}
       </Text>
@@ -99,18 +103,45 @@ function RecentOrderCard({ order }: { order: RecentOrder }) {
   );
 }
 
+/** Chamada principal do início: o melhor cupom disponível para o cliente, no degradê da marca. */
+function PromoBanner({ coupon }: { coupon: AvailableCoupon }) {
+  const title = `${describeCoupon(coupon, formatBRL)}${coupon.firstOrderOnly ? ' no 1º pedido' : ''}`;
+  const details = [
+    coupon.store ? `em ${coupon.store.tradeName}` : coupon.segment ? `em ${coupon.segment.name}` : null,
+    coupon.minOrderCents ? `pedido mín. ${formatBRL(coupon.minOrderCents)}` : null,
+    `cupom ${coupon.code}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return (
+    <Pressable accessibilityRole="button" onPress={() => router.push('/conta/cupons')} style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}>
+      <BrandGradient style={{ padding: space(5), gap: space(1) }}>
+        <Text variant="brand" tone="onBrand" style={{ fontSize: 22, lineHeight: 27 }}>
+          {title}
+        </Text>
+        <Text tone="onBrand" weight="600" style={{ opacity: 0.92 }}>
+          {details}
+        </Text>
+      </BrandGradient>
+    </Pressable>
+  );
+}
+
 /** Seções personalizadas do início: fidelidade/indicação, pedir de novo, favoritas, promoções e cupons. */
 export function HomeSections({ addressId }: { addressId: string }) {
   const colors = useColors();
   const home = useApi<HomeData>('me/home', { addressId });
   const data = home.data;
   if (!data) return null;
+  const promo = data.coupons.find((coupon) => !coupon.locked);
   const hasAny = data.loyalty || data.referral || data.recentOrders.length || data.favorites.length || data.promotions.length || data.coupons.length;
   if (!hasAny) return null;
   const horizontal = { gap: space(3), paddingRight: space(4) };
 
   return (
     <View style={{ gap: space(5) }}>
+      {promo ? <PromoBanner coupon={promo} /> : null}
+
       {data.loyalty || data.referral ? (
         <Row gap={3} align="stretch">
           {data.loyalty ? (

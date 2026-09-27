@@ -186,6 +186,8 @@ export class LogisticsEventsListener {
       channels: ['push'],
       app: 'DRIVER',
       channelId: 'offers',
+      // Mesmo toque que o app usa com a oferta na tela.
+      sound: 'offer.wav',
       ttlSeconds: Math.max(5, Math.round((new Date(event.expiresAt).getTime() - Date.now()) / 1000)),
     });
   }

@@ -27,6 +27,7 @@ interface TokenPair {
 
 const REFRESH_MAX_AGE = 30 * 86_400;
 const FORWARDED_RESPONSE_HEADERS = ['content-type', 'content-disposition', 'x-request-id', 'cache-control'];
+const API_UNAVAILABLE = 'Não foi possível falar com o servidor agora. Tente novamente em instantes.';
 
 export function createBff(config: BffConfig) {
   const accessCookie = `${config.cookiePrefix}_at`;
@@ -91,7 +92,12 @@ export function createBff(config: BffConfig) {
     const headers = new Headers(rest.headers);
     for (const [key, value] of Object.entries(apiHeaders(request, deviceId))) if (!headers.has(key)) headers.set(key, value);
     if (token) headers.set('Authorization', `Bearer ${token}`);
-    return fetch(`${config.apiUrl}${path}`, { ...rest, headers, cache: 'no-store', redirect: 'manual' });
+    try {
+      return await fetch(`${config.apiUrl}${path}`, { ...rest, headers, cache: 'no-store', redirect: 'manual' });
+    } catch {
+      // API fora do ar (ex.: reiniciando): responde 503 com mensagem em vez de estourar um 500 genérico no Next.
+      return Response.json({ message: API_UNAVAILABLE }, { status: 503 });
+    }
   }
 
   async function refreshTokens(refreshToken: string, request: NextRequest): Promise<TokenPair | null> {

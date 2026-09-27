@@ -16,8 +16,8 @@ export interface MapMarker {
 
 const COLORS: Record<NonNullable<MapMarker['kind']>, string> = {
   pickup: '#2563eb',
-  dropoff: '#16a34a',
-  driver: '#ff5a1f',
+  dropoff: '#1FA36B',
+  driver: '#FF5A1A',
   'driver-busy': '#d97706',
   point: '#6b7280',
   alert: '#d03b3b',
@@ -73,7 +73,7 @@ export function LiveMap({
     const L = leaflet.current;
     if (!L || !map.current || !layer.current) return;
     layer.current.clearLayers();
-    if (path && path.length > 1) L.polyline(path, { color: '#ff5a1f', weight: 4, opacity: 0.7 }).addTo(layer.current);
+    if (path && path.length > 1) L.polyline(path, { color: '#FF5A1A', weight: 4, opacity: 0.7 }).addTo(layer.current);
     for (const marker of markers) {
       const color = COLORS[marker.kind ?? 'point'];
       const circle = L.circleMarker([marker.lat, marker.lng], {

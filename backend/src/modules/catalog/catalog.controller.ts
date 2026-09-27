@@ -57,6 +57,19 @@ export class StoresController {
   }
 }
 
+@ApiTags('Vitrine (público)')
+@Controller('feed')
+export class ProductFeedController {
+  constructor(private readonly stores: StoresService) {}
+
+  @Public()
+  @Get('products')
+  @ApiOperation({ summary: 'Vitrine de produtos (com foto) das lojas que atendem a localização — tela inicial do app' })
+  products(@TenantId() tenantId: string, @Req() request: Request & { user?: AuthUser }, @Query() query: StoresQueryDto) {
+    return this.stores.productFeed(tenantId, request.user, query);
+  }
+}
+
 @ApiTags('Empresas • Catálogo')
 @ApiBearerAuth()
 @RequireFeature('catalog')
@@ -127,6 +140,15 @@ export class CompanyCatalogController {
   @CompanyPermission('company.products.manage')
   updateProduct(@Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateProductDto) {
     return this.catalog.updateProduct(companyId, id, dto);
+  }
+
+  @Post('products/:id/duplicate')
+  @CompanyPermission('company.products.manage')
+  @ApiOperation({ summary: 'Duplicar produto (dados, variações, adicionais, combo e fotos) — a cópia nasce inativa' })
+  async duplicateProduct(@Param('companyId', ParseUUIDPipe) companyId: string, @Param('id', ParseUUIDPipe) id: string) {
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { id: true, tenantId: true } });
+    if (!company) throw new NotFoundException('Empresa não encontrada.');
+    return this.catalog.duplicateProduct(company, id);
   }
 
   @Delete('products/:id')

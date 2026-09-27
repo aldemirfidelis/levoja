@@ -77,7 +77,7 @@ export class TenantsService {
         domains: tenant.domains,
         appName: text('appName') ?? tenant.name,
         logoUrl: text('logoUrl'),
-        primaryColor: text('primaryColor') ?? '#FF5A1F',
+        primaryColor: text('primaryColor') ?? '#FF5A1A',
         supportEmail: text('supportEmail'),
         supportPhone: text('supportPhone'),
         webUrl: (text('webUrl') ?? this.config.env.WEB_PUBLIC_URL).replace(/\/+$/, ''),

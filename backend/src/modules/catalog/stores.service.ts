@@ -6,7 +6,7 @@ import { isWithinOpeningHours } from '../../common/opening-hours';
 import { formatLocalDate } from '../../common/time-range';
 import { paginated } from '../../common/pagination';
 import type { AuthUser } from '../../common/auth/auth-user';
-import { CatalogService, productInclude } from './catalog.service';
+import { CatalogService, FEATURED_PER_STORE, productInclude } from './catalog.service';
 import { ServiceAreasService } from './service-areas.service';
 import { StoresQueryDto } from './catalog.dto';
 import { Prisma } from '../../generated/prisma/client';
@@ -125,6 +125,99 @@ export class StoresService {
     });
     const start = (query.page - 1) * query.pageSize;
     return paginated(rows.slice(start, start + query.pageSize), rows.length, query);
+  }
+
+  /**
+   * Vitrine da tela inicial do app: SÓ os produtos em destaque (escolhidos pela loja no catálogo,
+   * até FEATURED_PER_STORE por loja). Os demais produtos ficam apenas no cardápio da loja.
+   *
+   * Regras:
+   * - só lojas que aparecem na listagem para este endereço (aprovadas, segmento ativo, área de entrega cobrindo o cliente);
+   * - só produtos em destaque, ativos, disponíveis (estoque) e COM FOTO;
+   * - lojas abertas antes das fechadas; dentro de cada grupo as lojas seguem a ordem da listagem
+   *   (distância/avaliação) e os destaques se revezam entre elas (1º de cada loja, depois o 2º...),
+   *   para uma loja não ocupar a tela inteira;
+   * - dentro da loja: promoção vigente, depois os mais vendidos nos últimos 30 dias, depois a ordem do
+   *   cardápio e, por fim, o maior preço.
+   */
+  async productFeed(tenantId: string, user: AuthUser | undefined, query: StoresQueryDto) {
+    const stores = (await this.list(tenantId, user, { ...query, search: undefined, page: 1, pageSize: 500 })).data;
+    if (!stores.length) return paginated([], 0, query);
+    const search = query.search?.trim();
+
+    const products = await this.prisma.product.findMany({
+      where: {
+        companyId: { in: stores.map((store) => store.id) },
+        isFeatured: true,
+        status: 'ACTIVE',
+        deletedAt: null,
+        images: { some: {} },
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { description: { contains: search, mode: 'insensitive' } },
+                { company: { tradeName: { contains: search, mode: 'insensitive' } } },
+              ],
+            }
+          : {}),
+      },
+      include: productInclude,
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      take: 2000,
+    });
+
+    const since = new Date(Date.now() - 30 * 86_400_000);
+    const sales = await this.prisma.orderItem.groupBy({
+      by: ['productId'],
+      where: { productId: { in: products.map((product) => product.id) }, order: { status: 'DELIVERED', createdAt: { gte: since } } },
+      _sum: { quantity: true },
+    });
+    const sold = new Map(sales.map((row) => [row.productId, row._sum.quantity ?? 0]));
+
+    type View = ReturnType<CatalogService['toView']>;
+    const byStore = new Map<string, View[]>();
+    for (const product of products) {
+      const view = this.catalog.toView(product);
+      if (!view.available) continue;
+      byStore.set(product.companyId, [...(byStore.get(product.companyId) ?? []), view]);
+    }
+    for (const list of byStore.values()) {
+      list.sort((a, b) => Number(b.onSale) - Number(a.onSale) || (sold.get(b.id) ?? 0) - (sold.get(a.id) ?? 0) || a.sortOrder - b.sortOrder || b.effectivePriceCents - a.effectivePriceCents);
+    }
+
+    const interleave = (group: typeof stores) => {
+      const rows: { product: View; store: (typeof stores)[number] }[] = [];
+      for (let round = 0; round < FEATURED_PER_STORE; round++) {
+        for (const store of group) {
+          const product = byStore.get(store.id)?.[round];
+          if (product) rows.push({ product, store });
+        }
+      }
+      return rows;
+    };
+    const rows = [...interleave(stores.filter((store) => store.isOpenNow)), ...interleave(stores.filter((store) => !store.isOpenNow))];
+
+    const start = (query.page - 1) * query.pageSize;
+    return paginated(
+      rows.slice(start, start + query.pageSize).map(({ product, store }) => ({
+        product,
+        store: {
+          id: store.id,
+          slug: store.slug,
+          tradeName: store.tradeName,
+          logoUrl: store.logoUrl,
+          segment: store.segment,
+          isOpenNow: store.isOpenNow,
+          ratingAvg: store.ratingAvg,
+          ratingCount: store.ratingCount,
+          estimatedMinutes: store.estimatedMinutes,
+          distanceKm: store.distanceKm,
+        },
+      })),
+      rows.length,
+      query,
+    );
   }
 
   /** Visitas diárias à loja (base da taxa de conversão) — contagem agregada, sem identificar o visitante. */

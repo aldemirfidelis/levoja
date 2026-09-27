@@ -1,16 +1,22 @@
 import { ImageResponse } from 'next/og';
-import { fetchTenantBranding } from '@levoja/web-kit/brand';
+import { DEFAULT_BRANDING, fetchTenantBranding } from '@levoja/web-kit/brand';
 
 export const revalidate = 3600;
 
 const SIZES = new Set([192, 512]);
 
-/** Ícone PNG do PWA gerado com a cor e a inicial da marca (192 ou 512 px; `?maskable=1` com margem segura). */
+/**
+ * Ícone PNG do PWA (192 ou 512 px; `?maskable=1` com margem segura). Marca LevoJá: o ícone desenhado
+ * (public/icon-<tamanho>.png, a mão já fica na área segura). White label: cor e inicial do tenant.
+ */
 export async function GET(request: Request, { params }: { params: Promise<{ size: string }> }) {
   const size = Number((await params).size);
   if (!SIZES.has(size)) return new Response('Tamanho inválido', { status: 404 });
   const maskable = new URL(request.url).searchParams.get('maskable') === '1';
   const brand = await fetchTenantBranding(process.env.API_URL ?? 'http://localhost:3333', process.env.TENANT_SLUG ?? 'levoja');
+  if (!brand.logoUrl && brand.appName === DEFAULT_BRANDING.appName && brand.primaryColor === DEFAULT_BRANDING.primaryColor) {
+    return Response.redirect(new URL(`/icon-${size}.png`, request.url), 307);
+  }
   const letter = (brand.appName.trim()[0] ?? 'L').toUpperCase();
   return new ImageResponse(
     (

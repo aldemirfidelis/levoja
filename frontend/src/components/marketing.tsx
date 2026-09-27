@@ -13,8 +13,8 @@ export function Section({ children, className, muted }: { children: ReactNode; c
 export function SectionTitle({ eyebrow, title, description, center }: { eyebrow?: string; title: string; description?: string; center?: boolean }) {
   return (
     <div className={cn('mb-10 max-w-3xl', center && 'mx-auto text-center')}>
-      {eyebrow && <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-brand-600">{eyebrow}</p>}
-      <h2 className="text-3xl font-extrabold tracking-tight text-fg sm:text-4xl">{title}</h2>
+      {eyebrow && <p className="tracking-slogan mb-2 text-xs text-brand-600">{eyebrow}</p>}
+      <h2 className="font-display text-3xl text-fg sm:text-4xl">{title}</h2>
       {description && <p className="mt-4 text-lg text-muted">{description}</p>}
     </div>
   );
@@ -24,8 +24,8 @@ export function PageHero({ eyebrow, title, description, children }: { eyebrow?: 
   return (
     <section className="border-b border-border bg-gradient-to-b from-brand-500/10 to-transparent px-4 py-16 sm:px-6 sm:py-24">
       <div className="mx-auto max-w-4xl text-center">
-        {eyebrow && <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-brand-600">{eyebrow}</p>}
-        <h1 className="text-4xl font-extrabold tracking-tight text-fg sm:text-5xl">{title}</h1>
+        {eyebrow && <p className="tracking-slogan mb-3 text-xs text-brand-600">{eyebrow}</p>}
+        <h1 className="font-display text-4xl text-fg sm:text-5xl">{title}</h1>
         <p className="mx-auto mt-5 max-w-2xl text-lg text-muted">{description}</p>
         {children && <div className="mt-8 flex flex-wrap justify-center gap-3">{children}</div>}
       </div>
@@ -38,8 +38,10 @@ export function CtaLink({ href, children, variant = 'primary' }: { href: string;
     <Link
       href={href}
       className={cn(
-        'inline-flex h-12 items-center justify-center rounded-xl px-6 text-base font-semibold transition-colors',
-        variant === 'primary' ? 'bg-brand-500 text-white hover:bg-brand-600' : 'border border-border bg-surface text-fg hover:bg-surface-2',
+        'inline-flex h-[50px] items-center justify-center rounded-2xl px-6 text-base transition',
+        variant === 'primary'
+          ? 'bg-cta-gradient font-black italic text-white shadow-[0_6px_14px_rgba(240,74,26,0.3)] hover:brightness-105'
+          : 'bg-noite font-extrabold text-white hover:bg-noite/90 dark:bg-fg dark:text-bg',
       )}
     >
       {children}

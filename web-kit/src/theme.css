@@ -7,18 +7,22 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Nunito carregada pelo next/font em cada app (variável --font-nunito). */
+  --font-sans: var(--font-nunito), "Nunito", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
-  --color-brand-50: #fff4ed;
-  --color-brand-100: #ffe6d5;
-  --color-brand-200: #ffc9aa;
-  --color-brand-300: #ffa274;
-  --color-brand-400: #ff6f3c;
-  --color-brand-500: #ff5a1f;
-  --color-brand-600: #f03d0b;
-  --color-brand-700: #c72b0b;
-  --color-brand-800: #9e2412;
-  --color-brand-900: #7f2113;
+  --color-brand-50: #fff4ec;
+  --color-brand-100: #ffe3cf;
+  --color-brand-200: #ffc49e;
+  --color-brand-300: #ff9e66;
+  --color-brand-400: #ff7a1a;
+  --color-brand-500: #ff5a1a;
+  --color-brand-600: #e8321a;
+  --color-brand-700: #c2250f;
+  --color-brand-800: #9a1f10;
+  --color-brand-900: #7a1c11;
+  /* Cores fixas da marca LevoJá: Gema (destaques) e Noite (texto, "Levo", fundo escuro). */
+  --color-gema: #ffc22e;
+  --color-noite: #131a2b;
 
   --color-bg: var(--lj-bg);
   --color-surface: var(--lj-surface);
@@ -33,13 +37,14 @@
 }
 
 :root {
-  --lj-bg: #f6f7f9;
+  /* Nuvem (fundo), Noite (texto), Confirmado (sucesso) e texto secundário da marca. */
+  --lj-bg: #faf8f5;
   --lj-surface: #ffffff;
-  --lj-surface-2: #f1f3f6;
-  --lj-border: #e3e6eb;
-  --lj-fg: #111827;
-  --lj-muted: #6b7280;
-  --lj-success: #16a34a;
+  --lj-surface-2: #f3f0eb;
+  --lj-border: #e8e3dc;
+  --lj-fg: #131a2b;
+  --lj-muted: #5e6679;
+  --lj-success: #1fa36b;
   --lj-warning: #d97706;
   --lj-danger: #dc2626;
   --lj-info: #2563eb;
@@ -49,15 +54,16 @@
   color-scheme: light;
 }
 
+/* Modo escuro sobre o azul-noite da marca. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --lj-bg: #0d1117;
-    --lj-surface: #161b22;
-    --lj-surface-2: #1f2630;
-    --lj-border: #2d3440;
-    --lj-fg: #e6edf3;
-    --lj-muted: #9aa4b2;
-    --lj-success: #3fb950;
+    --lj-bg: #0e1320;
+    --lj-surface: #161d2e;
+    --lj-surface-2: #1f2739;
+    --lj-border: #2c3549;
+    --lj-fg: #eef0f5;
+    --lj-muted: #a3aabb;
+    --lj-success: #34c285;
     --lj-warning: #e3a008;
     --lj-danger: #f85149;
     --lj-info: #58a6ff;
@@ -68,19 +74,57 @@
 }
 
 :root[data-theme="dark"] {
-  --lj-bg: #0d1117;
-  --lj-surface: #161b22;
-  --lj-surface-2: #1f2630;
-  --lj-border: #2d3440;
-  --lj-fg: #e6edf3;
-  --lj-muted: #9aa4b2;
-  --lj-success: #3fb950;
+  --lj-bg: #0e1320;
+  --lj-surface: #161d2e;
+  --lj-surface-2: #1f2739;
+  --lj-border: #2c3549;
+  --lj-fg: #eef0f5;
+  --lj-muted: #a3aabb;
+  --lj-success: #34c285;
   --lj-warning: #e3a008;
   --lj-danger: #f85149;
   --lj-info: #58a6ff;
   --lj-chart-1: #3987e5;
   --lj-chart-1-soft: rgba(57, 135, 229, 0.14);
   color-scheme: dark;
+}
+
+/*
+ * Degradês da marca. Usam a escala da marca, então acompanham a cor do tenant (white label).
+ * "Já": gema → laranja → pimenta (logo, destaques). CTA: laranja → pimenta (botão principal).
+ */
+:root {
+  --lj-brand-gradient: linear-gradient(175deg, var(--color-gema) 0%, var(--color-brand-400) 48%, var(--color-brand-600) 100%);
+  --lj-cta-gradient: linear-gradient(135deg, var(--color-brand-400), var(--color-brand-600));
+}
+
+@utility bg-brand-gradient {
+  background-image: var(--lj-brand-gradient);
+}
+
+@utility bg-cta-gradient {
+  background-image: var(--lj-cta-gradient);
+}
+
+@utility text-brand-gradient {
+  background-image: var(--lj-brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Títulos de destaque da marca: Nunito 900 itálico, espaçamento negativo. */
+@utility font-display {
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -0.03em;
+}
+
+/* Slogan: caixa alta com espaçamento largo. */
+@utility tracking-slogan {
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
 }
 
 body {
@@ -103,4 +147,18 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .lj-skeleton { animation: none; }
+}
+
+/* Pedido novo aguardando a loja: contorno verde piscando em volta do card. */
+@keyframes lj-new-order {
+  0%, 100% { box-shadow: 0 0 0 2px var(--lj-success), 0 0 16px 2px color-mix(in srgb, var(--lj-success) 50%, transparent); }
+  50% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--lj-success) 20%, transparent), 0 0 0 0 transparent; }
+}
+
+.lj-new-order {
+  animation: lj-new-order 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lj-new-order { animation: none; box-shadow: 0 0 0 2px var(--lj-success); }
 }

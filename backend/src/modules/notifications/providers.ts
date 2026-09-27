@@ -8,6 +8,8 @@ export interface PushMessage {
   data?: Record<string, unknown>;
   /** Canal Android (ex.: "offers" com alta prioridade e som próprio no app do entregador). */
   channelId?: string;
+  /** Som do push (iOS; no Android vale o som do canal). Padrão: som do sistema. */
+  sound?: string;
   /** Validade em segundos (ofertas expiram — não faz sentido entregar depois). */
   ttlSeconds?: number;
 }
@@ -53,7 +55,7 @@ export class PushProvider {
             title: message.title,
             body: message.body,
             data: message.data,
-            sound: 'default',
+            sound: message.sound ?? 'default',
             priority: 'high',
             ...(message.channelId ? { channelId: message.channelId } : {}),
             ...(message.ttlSeconds ? { ttl: message.ttlSeconds } : {}),

@@ -22,7 +22,7 @@ export async function seedEssentials(client: PrismaClient = prisma, options: { q
   const slug = process.env.DEFAULT_TENANT_SLUG ?? 'levoja';
   const tenant = await client.tenant.upsert({
     where: { slug },
-    create: { slug, name: process.env.APP_NAME ?? 'LevoJá', domains: [], branding: { primaryColor: '#FF5A1F', appName: 'LevoJá' } },
+    create: { slug, name: process.env.APP_NAME ?? 'LevoJá', domains: [], branding: { primaryColor: '#FF5A1A', appName: 'LevoJá' } },
     update: {},
   });
   log(`✔ Tenant "${tenant.slug}"`);

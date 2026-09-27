@@ -1,8 +1,8 @@
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DELIVERY_STATUS_LABELS } from '@levoja/shared';
-import { Badge, Button, Card, formatBRL, Icon, LiveMap, Row, Screen, space, Stack, Text, useApi, useColors, type MapPoint } from '@levoja/mobile-kit';
+import { Badge, Button, Card, formatBRL, Icon, LiveMap, Row, Screen, space, Stack, Text, useApi, useAuth, useColors, type MapPoint } from '@levoja/mobile-kit';
 import { OfferModal } from '@/components/offer-modal';
 import { usePersistentApi } from '@/lib/cache';
 import { useDriver } from '@/lib/driver';
@@ -23,30 +23,57 @@ export default function Home() {
   ];
   const offer = driver.offers[0] ?? null;
   const today = driver.dashboard?.earnings.today;
+  const { me: account } = useAuth();
+  const firstName = account?.user.name.trim().split(/\s+/)[0];
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top }}>
-      <Screen refreshing={route.isRefetching} onRefresh={() => { driver.refresh(); void route.refetch(); }}>
+      <Screen
+        refreshing={route.isRefetching}
+        onRefresh={() => {
+          driver.refresh();
+          void route.refetch();
+        }}
+        footer={
+          driver.online ? (
+            <Button title="Ficar offline" variant="dark" icon="power" size="lg" onPress={driver.goOffline} loading={driver.busy} disabled={deliveries.length > 0} fullWidth />
+          ) : (
+            <Button title="Ficar online" icon="power" size="lg" onPress={driver.goOnline} loading={driver.busy} fullWidth />
+          )
+        }
+      >
+        <Row justify="space-between" gap={3} style={{ paddingTop: space(2) }}>
+          <View style={{ flex: 1 }}>
+            <Text variant="caption" tone="muted" weight="700">
+              LevoJá Entregador
+            </Text>
+            <Text variant="brand" numberOfLines={1}>
+              Olá{firstName ? `, ${firstName}` : ''}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Minha conta"
+            onPress={() => router.navigate('/conta')}
+            style={({ pressed }) => ({ width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.brandSoft, opacity: pressed ? 0.8 : 1 })}
+          >
+            <Icon name="person" size={22} color={colors.brand} />
+          </Pressable>
+        </Row>
+
         <Card>
-          <Stack gap={3}>
-            <Row justify="space-between">
-              <View>
-                <Text variant="heading">{driver.online ? 'Você está online' : 'Você está offline'}</Text>
-                <Text variant="caption" tone="muted">
-                  {driver.online
-                    ? driver.trackingMode === 'foreground'
-                      ? 'GPS ativo com o app aberto'
-                      : 'Recebendo ofertas próximas'
-                    : 'Fique online para receber entregas'}
-                </Text>
-              </View>
-              <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: driver.online ? colors.success : colors.border }} />
+          <Stack gap={2}>
+            <Row gap={2}>
+              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: driver.online ? colors.success : colors.muted }} />
+              <Text variant="heading">{driver.online ? 'Você está online' : 'Você está offline'}</Text>
             </Row>
-            {driver.online ? (
-              <Button title="Ficar offline" variant="secondary" icon="power" onPress={driver.goOffline} loading={driver.busy} disabled={deliveries.length > 0} />
-            ) : (
-              <Button title="Ficar online" icon="power" size="lg" onPress={driver.goOnline} loading={driver.busy} />
-            )}
+            <Text tone="muted">
+              {driver.online
+                ? driver.trackingMode === 'foreground'
+                  ? 'GPS ativo com o app aberto.'
+                  : 'Recebendo corridas perto de você.'
+                : 'Fique online para receber corridas perto de você.'}
+            </Text>
             {deliveries.length > 0 && driver.online ? (
               <Text variant="caption" tone="muted">
                 Conclua as entregas em andamento para ficar offline.
@@ -99,26 +126,28 @@ export default function Home() {
           </Card>
         ))}
 
-        <Row gap={3}>
+        <Row gap={3} align="stretch">
           <Card style={{ flex: 1 }}>
-            <Text variant="caption" tone="muted">
-              Hoje
+            <Text tone="muted" weight="600">
+              Ganhos hoje
             </Text>
-            <Text variant="heading">{formatBRL(today?.cents ?? 0)}</Text>
-            <Text variant="caption" tone="muted">
-              {today?.deliveries ?? 0} entrega(s)
+            <Text variant="display" style={{ fontSize: 26 }} numberOfLines={1} adjustsFontSizeToFit>
+              {formatBRL(today?.cents ?? 0)}
             </Text>
           </Card>
           <Card style={{ flex: 1 }}>
-            <Text variant="caption" tone="muted">
-              Avaliação
+            <Text tone="muted" weight="600">
+              Entregas
             </Text>
-            <Text variant="heading">{driver.dashboard?.rating.count ? `★ ${driver.dashboard.rating.average.toFixed(1)}` : '—'}</Text>
-            <Text variant="caption" tone="muted">
-              Aceite {driver.dashboard?.acceptanceRate != null ? `${driver.dashboard.acceptanceRate}%` : '—'}
+            <Text variant="display" style={{ fontSize: 26 }}>
+              {today?.deliveries ?? 0}
             </Text>
           </Card>
         </Row>
+        <Text variant="caption" tone="muted" align="center">
+          Avaliação {driver.dashboard?.rating.count ? `★ ${driver.dashboard.rating.average.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}` : '—'} · aceite{' '}
+          {driver.dashboard?.acceptanceRate != null ? `${driver.dashboard.acceptanceRate}%` : '—'}
+        </Text>
         <View style={{ height: space(4) }} />
       </Screen>
       <OfferModal offer={offer} />

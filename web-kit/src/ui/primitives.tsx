@@ -14,21 +14,24 @@ import { cn } from '../utils';
 
 export { cn };
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
+type Variant = 'primary' | 'secondary' | 'dark' | 'ghost' | 'danger' | 'success';
 type Size = 'sm' | 'md' | 'lg';
 
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-brand-500 text-white hover:bg-brand-600 focus-visible:outline-brand-500',
+  // Botão principal da marca: degradê laranja → pimenta, Nunito 900 itálico.
+  primary: 'bg-cta-gradient text-white font-black italic shadow-[0_6px_14px_rgba(240,74,26,0.3)] hover:brightness-105 active:brightness-95 focus-visible:outline-brand-500',
   secondary: 'bg-surface text-fg border border-border hover:bg-surface-2 focus-visible:outline-brand-500',
+  // Secundário da marca: azul-noite (no modo escuro, invertido para continuar visível).
+  dark: 'bg-noite text-white font-extrabold hover:bg-noite/90 dark:bg-fg dark:text-bg focus-visible:outline-brand-500',
   ghost: 'text-fg hover:bg-surface-2 focus-visible:outline-brand-500',
   danger: 'bg-danger text-white hover:opacity-90 focus-visible:outline-danger',
   success: 'bg-success text-white hover:opacity-90 focus-visible:outline-success',
 };
 
 const SIZES: Record<Size, string> = {
-  sm: 'h-8 px-3 text-sm gap-1.5',
-  md: 'h-10 px-4 text-sm gap-2',
-  lg: 'h-12 px-6 text-base gap-2',
+  sm: 'h-8 px-3 text-sm gap-1.5 rounded-lg',
+  md: 'h-10 px-4 text-sm gap-2 rounded-xl',
+  lg: 'h-[50px] px-6 text-base gap-2 rounded-2xl',
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -46,7 +49,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     <button
       ref={ref}
       className={cn(
-        'inline-flex items-center justify-center rounded-lg font-medium transition-colors',
+        'inline-flex items-center justify-center font-bold transition',
         'focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
         VARIANTS[variant],
         SIZES[size],

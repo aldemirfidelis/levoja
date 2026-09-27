@@ -64,7 +64,7 @@ const SUPPLY: Record<Snapshot['supplyDemand'][number]['status'], { label: string
 
 function Legend() {
   const items: { color: string; label: string }[] = [
-    { color: '#ff5a1f', label: 'Entregador livre' },
+    { color: '#FF5A1A', label: 'Entregador livre' },
     { color: '#d97706', label: 'Entregador em entrega' },
     { color: '#6b7280', label: 'Sem sinal' },
     { color: '#2563eb', label: 'Coleta aguardando entregador' },

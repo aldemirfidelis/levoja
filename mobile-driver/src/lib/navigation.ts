@@ -1,4 +1,12 @@
+import { Linking, Platform } from 'react-native';
 import { router } from 'expo-router';
+
+/** Abre o destino em outro app de mapas (Waze, Google Maps, Apple Maps...) — alternativa à navegação do app. */
+export function openExternalNavigation(stop: { lat: number; lng: number; street: string; number: string }) {
+  const label = encodeURIComponent(`${stop.street}, ${stop.number}`);
+  const url = Platform.OS === 'ios' ? `http://maps.apple.com/?daddr=${stop.lat},${stop.lng}&q=${label}` : `geo:${stop.lat},${stop.lng}?q=${stop.lat},${stop.lng}(${label})`;
+  Linking.openURL(url).catch(() => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${stop.lat},${stop.lng}`));
+}
 
 /** Destino ao tocar num push ou numa notificação do app do entregador. */
 export function openFromNotification(data: Record<string, unknown>, type?: string) {

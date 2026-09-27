@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
-import { Package, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Copy, Package, Pencil, Plus, Star, Trash2 } from 'lucide-react';
 import { formatBRL } from '@levoja/shared';
 import { api, Paginated, useApi, useApiMutation } from '@levoja/web-kit/client';
 import {
@@ -125,6 +125,34 @@ export default function CatalogPage() {
     void categories.refetch();
   };
 
+  /** Destaque na tela inicial do app (o limite por loja é validado pela API). */
+  const featuredCount = (all.data?.data ?? []).filter((product) => product.isFeatured).length;
+  const toggleFeatured = async (product: ProductView) => {
+    try {
+      await api.patch(`${base}/products/${product.id}`, { isFeatured: !product.isFeatured });
+      toast.success(product.isFeatured ? 'Destaque removido.' : product.images.length ? 'Produto em destaque na tela inicial do app.' : 'Produto em destaque. Adicione uma foto para ele aparecer na tela inicial do app.');
+      refresh();
+    } catch (error) {
+      toast.error(error);
+    }
+  };
+
+  /** Duplica o produto (a cópia nasce inativa, logo abaixo do original) e já abre a cópia para editar. */
+  const [duplicating, setDuplicating] = useState<string | null>(null);
+  const duplicate = async (product: ProductView) => {
+    setDuplicating(product.id);
+    try {
+      const copy = await api.post<ProductView>(`${base}/products/${product.id}/duplicate`);
+      toast.success('Cópia criada (inativa). Ajuste o que mudar e marque "Produto ativo" para publicar.');
+      refresh();
+      setEditing(copy);
+    } catch (error) {
+      toast.error(error);
+    } finally {
+      setDuplicating(null);
+    }
+  };
+
   const [stockOf, setStockOf] = useState<ProductView | null>(null);
   const [stockForm, setStockForm] = useState({ delta: '', reason: '' });
   const adjustStock = (product: ProductView) => {
@@ -163,6 +191,14 @@ export default function CatalogPage() {
             </Button>
           )}
         </div>
+        {manage && !!all.data?.data.length && (
+          <p className="mb-4 flex items-center gap-2 rounded-xl border border-gema/50 bg-gema/10 px-4 py-2.5 text-sm text-fg">
+            <Star className="h-4 w-4 shrink-0 fill-gema text-gema" aria-hidden />
+            <span>
+              <strong>Destaques: {featuredCount} de 3.</strong> Só os produtos em destaque aparecem na tela inicial do app (com foto grande, sua loja e seus cupons); os demais ficam no cardápio da loja. Clique na estrela para destacar — o produto precisa ter foto.
+            </span>
+          </p>
+        )}
         {products.isLoading && <SkeletonRows />}
         {products.error && <ErrorState error={products.error} onRetry={() => products.refetch()} />}
         {products.data?.data.length === 0 && (
@@ -190,6 +226,7 @@ export default function CatalogPage() {
                       <div>
                         <p className="font-medium">{row.name}</p>
                         <div className="mt-0.5 flex flex-wrap gap-1">
+                          {row.isFeatured && <Badge tone="warning">★ Destaque</Badge>}
                           {row.type === 'COMBO' && <Badge tone="info">Combo</Badge>}
                           {row.onSale && <Badge tone="brand">Promoção</Badge>}
                           {row.requiresPrescription && <Badge tone="warning">Receita</Badge>}
@@ -233,6 +270,24 @@ export default function CatalogPage() {
                   cell: (row) =>
                     manage && (
                       <div className="flex justify-end gap-1">
+                        <button
+                          onClick={() => toggleFeatured(row)}
+                          className="rounded-lg p-2 text-muted hover:bg-surface-2"
+                          aria-pressed={row.isFeatured}
+                          aria-label={row.isFeatured ? 'Tirar destaque' : 'Destacar na tela inicial do app'}
+                          title={row.isFeatured ? 'Tirar destaque' : 'Destacar na tela inicial do app'}
+                        >
+                          <Star className={cn('h-4 w-4', row.isFeatured && 'fill-gema text-gema')} />
+                        </button>
+                        <button
+                          onClick={() => duplicate(row)}
+                          disabled={duplicating !== null}
+                          className="rounded-lg p-2 text-muted hover:bg-surface-2 disabled:opacity-50"
+                          aria-label="Duplicar produto"
+                          title="Duplicar produto"
+                        >
+                          <Copy className={cn('h-4 w-4', duplicating === row.id && 'animate-pulse text-brand-500')} />
+                        </button>
                         <button onClick={() => setEditing(row)} className="rounded-lg p-2 text-muted hover:bg-surface-2" aria-label="Editar">
                           <Pencil className="h-4 w-4" />
                         </button>

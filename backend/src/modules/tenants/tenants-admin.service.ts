@@ -103,7 +103,7 @@ export class TenantsAdminService {
     if (await this.prisma.tenant.findUnique({ where: { slug }, select: { id: true } })) throw new ConflictException('Já existe um tenant com este identificador.');
 
     const tenant = await this.prisma.tenant.create({
-      data: { slug, name: input.name.trim(), domains, branding: this.branding({ appName: input.name.trim(), primaryColor: '#FF5A1F' }, input.branding) ?? Prisma.DbNull },
+      data: { slug, name: input.name.trim(), domains, branding: this.branding({ appName: input.name.trim(), primaryColor: '#FF5A1A' }, input.branding) ?? Prisma.DbNull },
     });
     await provisionTenant(this.prisma, tenant.id);
 

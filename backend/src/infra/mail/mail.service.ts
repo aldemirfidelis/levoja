@@ -64,20 +64,26 @@ function renderText(message: MailMessage): string {
   return parts.join('\n\n');
 }
 
+/** Nome no topo do e-mail: LevoJá com "Levo" em azul-noite e "Já" em laranja; white label, na cor da marca. */
+function brandHeading(appName: string): string {
+  if (appName === 'LevoJá') return '<span style="color:#131a2b">Levo</span><span style="color:#ff5a1a">Já</span>';
+  return `<span style="color:#ff5a1a">${escapeHtml(appName)}</span>`;
+}
+
 function renderHtml(appName: string, message: MailMessage): string {
   const paragraphs = message.paragraphs
-    .map((p) => `<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1f2937">${escapeHtml(p)}</p>`)
+    .map((p) => `<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#131a2b">${escapeHtml(p)}</p>`)
     .join('');
   const action = message.action
-    ? `<p style="margin:24px 0"><a href="${escapeHtml(message.action.url)}" style="background:#ff5a1f;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block">${escapeHtml(message.action.label)}</a></p>`
+    ? `<p style="margin:24px 0"><a href="${escapeHtml(message.action.url)}" style="background:#ff5a1a;color:#fff;padding:14px 22px;border-radius:16px;text-decoration:none;font-weight:900;font-style:italic;display:inline-block">${escapeHtml(message.action.label)}</a></p>`
     : '';
   const footer = message.footer
-    ? `<p style="margin:24px 0 0;font-size:12px;color:#6b7280">${escapeHtml(message.footer)}</p>`
+    ? `<p style="margin:24px 0 0;font-size:12px;color:#5e6679">${escapeHtml(message.footer)}</p>`
     : '';
-  return `<!doctype html><html lang="pt-BR"><body style="margin:0;background:#f3f4f6;font-family:Segoe UI,Arial,sans-serif">
+  return `<!doctype html><html lang="pt-BR"><body style="margin:0;background:#faf8f5;font-family:Nunito,Segoe UI,Arial,sans-serif">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">
-<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fff;border-radius:12px;padding:32px">
-<tr><td><p style="margin:0 0 24px;font-size:20px;font-weight:700;color:#ff5a1f">${escapeHtml(appName)}</p>
-<h1 style="margin:0 0 16px;font-size:20px;color:#111827">${escapeHtml(message.subject)}</h1>
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fff;border-radius:16px;padding:32px">
+<tr><td><p style="margin:0 0 24px;font-size:26px;font-weight:900;font-style:italic;letter-spacing:-0.5px">${brandHeading(appName)}</p>
+<h1 style="margin:0 0 16px;font-size:20px;color:#131a2b">${escapeHtml(message.subject)}</h1>
 ${paragraphs}${action}${footer}</td></tr></table></td></tr></table></body></html>`;
 }

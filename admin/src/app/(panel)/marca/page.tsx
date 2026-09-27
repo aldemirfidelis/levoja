@@ -21,7 +21,7 @@ interface Branding {
 export default function BrandingPage() {
   const toast = useToast();
   const { data, error, isLoading, refetch } = useApi<Branding>('admin/branding');
-  const [form, setForm] = useState({ appName: '', primaryColor: '#FF5A1F', supportEmail: '', supportPhone: '', webUrl: '', adminUrl: '' });
+  const [form, setForm] = useState({ appName: '', primaryColor: '#FF5A1A', supportEmail: '', supportPhone: '', webUrl: '', adminUrl: '' });
   const [busy, setBusy] = useState(false);
   const file = useRef<HTMLInputElement>(null);
 
@@ -82,7 +82,7 @@ export default function BrandingPage() {
               <label className="block text-sm">
                 <span className="mb-1 block font-medium text-fg">Cor principal</span>
                 <span className="flex items-center gap-2">
-                  <input type="color" aria-label="Cor principal" value={palette ? form.primaryColor : '#FF5A1F'} onChange={(event) => setForm({ ...form, primaryColor: event.target.value.toUpperCase() })} className="h-10 w-14 rounded border border-border bg-surface" />
+                  <input type="color" aria-label="Cor principal" value={palette ? form.primaryColor : '#FF5A1A'} onChange={(event) => setForm({ ...form, primaryColor: event.target.value.toUpperCase() })} className="h-10 w-14 rounded border border-border bg-surface" />
                   <Input aria-label="Cor em hexadecimal" value={form.primaryColor} onChange={(event) => setForm({ ...form, primaryColor: event.target.value })} />
                 </span>
               </label>

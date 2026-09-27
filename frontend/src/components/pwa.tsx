@@ -109,6 +109,7 @@ interface RealtimeNotification {
 function targetUrl(notification: RealtimeNotification): string {
   const data = notification.data ?? {};
   if (typeof data.deliveryId === 'string' && notification.type.startsWith('delivery')) return `/entregas/${data.deliveryId}`;
+  if (typeof data.companyId === 'string' && notification.type.startsWith('company.order')) return `/empresa/${data.companyId}/pedidos`;
   if (typeof data.companyId === 'string' && notification.type.startsWith('fleet')) return `/empresa/${data.companyId}/frota`;
   if (typeof data.referralId === 'string') return '/conta?aba=indique';
   return '/conta?aba=notificacoes';

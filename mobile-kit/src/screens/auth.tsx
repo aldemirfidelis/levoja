@@ -4,6 +4,7 @@ import { isValidEmail } from '@levoja/shared';
 import { api, errorMessage } from '../api';
 import { useAuth } from '../auth';
 import { space } from '../theme';
+import { BrandLogo, BrandSlogan } from '../ui/brand';
 import { Button, Field, Stack, Text } from '../ui/primitives';
 import { Screen } from '../ui/layout';
 
@@ -59,8 +60,15 @@ export function LoginScreen({
       }
     >
       <View style={{ alignItems: 'center', gap: space(3), paddingTop: space(8), paddingBottom: space(4) }}>
-        {logo ? <Image source={logo} style={{ width: 88, height: 88, borderRadius: 22 }} accessibilityIgnoresInvertColors /> : null}
-        <Text variant="title" align="center">
+        {logo ? (
+          <Image source={logo} style={{ width: 88, height: 88, borderRadius: 22 }} accessibilityIgnoresInvertColors />
+        ) : (
+          <View style={{ alignItems: 'center', gap: space(2), marginBottom: space(3) }}>
+            <BrandLogo size={46} />
+            <BrandSlogan size={10} />
+          </View>
+        )}
+        <Text variant="brand" align="center">
           {title}
         </Text>
         {subtitle ? (

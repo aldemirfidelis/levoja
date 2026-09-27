@@ -83,6 +83,7 @@ export class ProductDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() requiresPrescription?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) @Max(21) minimumAge?: number | null;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) @Max(10_000) sortOrder?: number;
+  @ApiPropertyOptional({ description: 'Destaque na vitrine da tela inicial do app (até 3 por loja)' }) @IsOptional() @IsBoolean() isFeatured?: boolean;
 
   @ApiPropertyOptional({ type: [OptionGroupDto], description: 'Substitui os grupos existentes' })
   @IsOptional()

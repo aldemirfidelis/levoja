@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Image, Pressable, SectionList, View } from 'react-native';
+import { Image, Pressable, ScrollView, SectionList, View } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { Badge, EmptyState, ErrorView, formatBRL, Icon, Loading, radius, Row, space, Text, useApi, useColors } from '@levoja/mobile-kit';
+import { Badge, brandColors, EmptyState, ErrorView, formatBRL, Icon, Loading, radius, Row, space, Text, useApi, useColors } from '@levoja/mobile-kit';
 import { CartBar } from '@/components/cart-bar';
 import { ProductSheet } from '@/components/product-sheet';
 import { FavoriteButton } from '@/components/favorite-button';
+import { StoreCoupons, useStoreCoupons } from '@/components/store-coupons';
 import type { Product, StoreDetail } from '@/lib/types';
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -39,11 +40,54 @@ function ProductRow({ product, onPress }: { product: Product; onPress: () => voi
   );
 }
 
+/** Destaques escolhidos pela loja: fotos grandes em faixa horizontal, no topo do cardápio. */
+function FeaturedProducts({ products, onPress }: { products: Product[]; onPress: (product: Product) => void }) {
+  const colors = useColors();
+  return (
+    <View style={{ gap: space(3), paddingBottom: space(3) }}>
+      <Row gap={1.5} style={{ paddingHorizontal: space(4) }}>
+        <Icon name="star" size={18} color={brandColors.gema} />
+        <Text variant="heading">Destaques</Text>
+      </Row>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space(3), paddingHorizontal: space(4) }}>
+        {products.map((product) => {
+          const image = product.images[0]?.url;
+          return (
+            <Pressable key={product.id} accessibilityRole="button" accessibilityLabel={`${product.name}, ${formatBRL(product.effectivePriceCents)}`} onPress={() => onPress(product)} style={({ pressed }) => ({ width: 200, gap: space(1.5), opacity: pressed ? 0.8 : 1 })}>
+              {image ? (
+                <Image source={{ uri: image }} style={{ width: 200, height: 150, borderRadius: radius.lg }} accessibilityIgnoresInvertColors />
+              ) : (
+                <View style={{ width: 200, height: 150, borderRadius: radius.lg, backgroundColor: colors.brandSoft, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="star" size={32} color={brandColors.gema} />
+                </View>
+              )}
+              <Text weight="800" numberOfLines={1}>
+                {product.name}
+              </Text>
+              <Row gap={2}>
+                <Text weight="900" tone="brand">
+                  {formatBRL(product.effectivePriceCents)}
+                </Text>
+                {product.onSale ? (
+                  <Text variant="caption" tone="muted" style={{ textDecorationLine: 'line-through' }}>
+                    {formatBRL(product.priceCents)}
+                  </Text>
+                ) : null}
+              </Row>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
 export default function StoreScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const store = useApi<StoreDetail>(`stores/${id}`);
   const [product, setProduct] = useState<Product | null>(null);
+  const couponsByStore = useStoreCoupons();
 
   const sections = useMemo(() => {
     if (!store.data) return [];
@@ -51,6 +95,10 @@ export default function StoreScreen() {
     if (store.data.uncategorized.length) list.push({ title: list.length ? 'Outros' : 'Produtos', data: store.data.uncategorized });
     return list;
   }, [store.data]);
+  const featured = useMemo(
+    () => (store.data ? [...store.data.categories.flatMap((category) => category.products), ...store.data.uncategorized].filter((item) => item.isFeatured && item.available) : []),
+    [store.data],
+  );
 
   if (store.isLoading) return <Loading />;
   if (store.error || !store.data) return <ErrorView error={store.error} onRetry={() => store.refetch()} />;
@@ -95,7 +143,9 @@ export default function StoreScreen() {
               ) : null}
               {data.description ? <Text tone="muted">{data.description}</Text> : null}
               {!data.isOpenNow ? <Text tone="warning">A loja está fechada agora. Você pode montar a sacola e agendar o pedido.</Text> : null}
+              <StoreCoupons coupons={couponsByStore.get(data.id)} max={3} />
             </View>
+            {featured.length ? <FeaturedProducts products={featured} onPress={setProduct} /> : null}
           </View>
         }
         renderSectionHeader={({ section }) => (

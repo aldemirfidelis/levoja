@@ -5,6 +5,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import {
   AuthProvider,
+  useBrandFonts,
   ErrorView,
   themeColors,
   OfflineBanner,
@@ -27,9 +28,12 @@ import { openFromNotification } from '@/lib/navigation';
 
 void SplashScreen.preventAutoHideAsync();
 
-const OFFER_CHANNEL: PushChannel[] = [{ id: 'offers', name: 'Ofertas de entrega', importance: 'MAX', vibrationPattern: [0, 500, 250, 500, 250, 500] }];
+const OFFER_CHANNEL: PushChannel[] = [{ id: 'offers', name: 'Ofertas de entrega', importance: 'MAX', vibrationPattern: [0, 700, 400, 700, 400, 700], sound: 'offer.wav' }];
 
 export default function RootLayout() {
+  // A tela de abertura continua até a fonte da marca (Nunito) carregar.
+  const fontsReady = useBrandFonts();
+  if (!fontsReady) return null;
   return (
     <QueryProvider>
       <ToastProvider>

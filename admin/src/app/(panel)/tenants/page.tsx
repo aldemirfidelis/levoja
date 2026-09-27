@@ -35,7 +35,7 @@ function TenantDialog({ tenant, onClose, onSaved }: { tenant: TenantRow | null; 
     name: tenant?.name ?? '',
     domains: tenant?.domains.join('\n') ?? '',
     appName: tenant?.branding?.appName ?? '',
-    primaryColor: tenant?.branding?.primaryColor ?? '#FF5A1F',
+    primaryColor: tenant?.branding?.primaryColor ?? '#FF5A1A',
     supportEmail: tenant?.branding?.supportEmail ?? '',
     supportPhone: tenant?.branding?.supportPhone ?? '',
     webUrl: tenant?.branding?.webUrl ?? '',
@@ -149,7 +149,7 @@ export default function TenantsPage() {
               header: 'Tenant',
               cell: (row) => (
                 <div className="flex items-center gap-3">
-                  <span className="h-6 w-6 shrink-0 rounded-full border border-border" style={{ background: row.branding?.primaryColor ?? '#FF5A1F' }} aria-hidden />
+                  <span className="h-6 w-6 shrink-0 rounded-full border border-border" style={{ background: row.branding?.primaryColor ?? '#FF5A1A' }} aria-hidden />
                   <div>
                     <p className="font-medium">{row.branding?.appName ?? row.name}</p>
                     <p className="text-xs text-muted">

@@ -19,8 +19,8 @@ Tudo usa dados fictícios. Os pagamentos, e-mails, push e mapas ficam em modo de
 | API | http://localhost:3333 (documentação em `/docs`) | `pnpm dev:api` |
 | Portal | http://localhost:3000 | `pnpm dev:web` |
 | Painel da equipe | http://localhost:3001 (login em `/login`) | `pnpm dev:admin` |
-| App do cliente (Metro) | porta 8081 | `pnpm dev:client` |
-| App do entregador (Metro) | porta 8082 | `cd mobile-driver && npx expo start --port 8082` |
+| App do cliente (Metro) | porta 8081 | `pnpm dev:client:usb` (celular no cabo) |
+| App do entregador (Metro) | porta 8082 | `pnpm dev:driver:usb` (celular no cabo) |
 
 Para conferir se a API está pronta, abra http://localhost:3333/health/ready. O resultado esperado é `database: up`.
 
@@ -116,10 +116,25 @@ Com isso, os apps usam `http://localhost:3333` no próprio celular. Isso já est
 
 ### Rodar os apps pelo Expo Go (mais rápido, sem compilar)
 
+Um terminal para cada app, na raiz do projeto:
+
 ```bash
-pnpm dev:client                              # tecle "a": abre o app do cliente no celular
-cd mobile-driver && npx expo start --port 8082   # tecle "a": abre o app do entregador
+pnpm dev:client:usb    # app do cliente (porta 8081)
+pnpm dev:driver:usb    # app do entregador (porta 8082)
 ```
+
+Cada comando:
+
+- redireciona as portas pelo cabo (não precisa rodar `pnpm android:usb` antes);
+- sobe o Metro com o endereço `exp://127.0.0.1:<porta>`, que passa pelo cabo;
+- monta o bundle Android (na primeira vez leva alguns minutos) e só então abre o app no Expo Go.
+
+Suba um app de cada vez: espere a mensagem "aberto no Expo Go" do primeiro antes de subir o segundo.
+
+Não use `pnpm dev:client` nem `npx expo start --localhost` com o celular no cabo:
+
+- `pnpm dev:client` entrega ao celular o IP do Wi-Fi do notebook, e o firewall do Windows derruba a conexão (o app fica parado na tela de abertura);
+- `--localhost` faz o Metro escutar só em IPv6 (`::1`), e o redirecionamento do cabo chega em `127.0.0.1` (o Expo Go mostra "Something went wrong").
 
 O Expo Go tem duas limitações:
 
@@ -130,14 +145,14 @@ Todo o resto funciona igual.
 
 **Se o Expo Go ficar parado em "New update available, downloading...":**
 
-1. Olhe o terminal do Metro. A primeira compilação mostra `Android Bundling …%` e pode levar 1 a 2 minutos.
+1. Olhe o terminal do Metro. A primeira compilação mostra `Android Bundling …%` e pode levar alguns minutos.
 2. Se não aparecer progresso nem erro, pare com Ctrl+C e suba de novo limpando o cache:
    ```bash
-   cd mobile-client
-   npx expo start --clear
+   pnpm dev:client:usb --clear
    ```
-   Depois tecle `a`.
 3. Confira se o celular continua autorizado com `pnpm android:usb`.
+
+**Se o celular mostrar tela vermelha com "response error code: 500":** o Metro falhou ao indexar os arquivos quando subiu. O erro original aparece no terminal como `Failed to construct transformer`. Pare com Ctrl+C e suba de novo.
 
 ### Build nativo (GPS em segundo plano e push)
 
@@ -150,6 +165,17 @@ Precisa do JDK 17:
 ```bash
 cd mobile-driver && npx expo run:android --device   # instala o app de desenvolvimento no celular
 ```
+
+### Avisos de oferta e navegação no app do entregador
+
+| Recurso | Expo Go | Build do app (APK) |
+|---|---|---|
+| Toque + vibração com a oferta na tela | Sim (app aberto) | Sim |
+| Notificação com o app fechado (push, canal "Ofertas de entrega" com o toque `offer.wav`) | **Não** — o Expo Go para Android não tem push desde o SDK 53 | Sim, com Firebase (FCM) e `EAS_PROJECT_ID` |
+| Navegação dentro do app (mapa, voz em português, recálculo de rota) | Sim | Sim |
+
+- A navegação usa o OSRM configurado em `OSRM_URL`. Sem essa variável, a API usa o servidor público de demonstração do OSRM (`router.project-osrm.org`): serve para testes, **não para produção** (limite de uso e sem garantia). Em produção, hospede um OSRM com o mapa do Brasil ou contrate um provedor de rotas.
+- Depois de instalar pacotes novos no app (ex.: `expo-audio`, `expo-speech`), **reinicie o Metro** (`Ctrl+C` e `pnpm dev:driver:usb`): a lista de pacotes que o Metro observa é montada quando ele sobe.
 
 ## 5. Roteiro de testes
 

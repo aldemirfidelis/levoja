@@ -7,9 +7,11 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 /**
  * White label: cada marca gera seu próprio app com APP_DISPLAY_NAME, APP_SLUG, APP_SCHEME,
  * IOS_BUNDLE_ID, ANDROID_PACKAGE, APP_BRAND_COLOR (#RRGGBB), APP_ASSETS_DIR (ícones e splash da
- * marca) e EXPO_PUBLIC_TENANT/EXPO_PUBLIC_BRAND_COLOR (tenant e cor usados pelo app em execução).
+ * marca), APP_SPLASH_COLOR (fundo da abertura; padrão Nuvem, ou a cor da marca com APP_BRAND_COLOR)
+ * e EXPO_PUBLIC_TENANT/EXPO_PUBLIC_BRAND_COLOR (tenant e cor usados pelo app em execução).
  */
-const BRAND_COLOR = process.env.APP_BRAND_COLOR ?? process.env.EXPO_PUBLIC_BRAND_COLOR ?? '#FF5A1F';
+const BRAND_COLOR = process.env.APP_BRAND_COLOR ?? process.env.EXPO_PUBLIC_BRAND_COLOR ?? '#FF5A1A';
+const SPLASH_COLOR = process.env.APP_SPLASH_COLOR ?? (process.env.APP_BRAND_COLOR ? BRAND_COLOR : '#FAF8F5');
 const ASSETS = (process.env.APP_ASSETS_DIR ?? './assets').replace(/\/+$/, '');
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
@@ -39,7 +41,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     'expo-router',
     'expo-secure-store',
-    ['expo-splash-screen', { backgroundColor: BRAND_COLOR, image: `${ASSETS}/splash-icon.png`, imageWidth: 120 }],
+    ['expo-splash-screen', { backgroundColor: SPLASH_COLOR, image: `${ASSETS}/splash-icon.png`, imageWidth: 120, dark: { backgroundColor: '#131A2B' } }],
     [
       'expo-location',
       { locationWhenInUsePermission: 'Usamos sua localização para mostrar lojas que entregam aí e preencher o endereço de entrega.' },

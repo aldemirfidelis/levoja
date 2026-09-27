@@ -28,6 +28,8 @@ export interface PushChannel {
   name: string;
   importance?: 'DEFAULT' | 'HIGH' | 'MAX';
   vibrationPattern?: number[];
+  /** Arquivo de som incluído no app (plugin expo-notifications `sounds`), ex.: "offer.wav". */
+  sound?: string;
 }
 
 const storageKey = () => `levoja.push.${kitConfig().app.toLowerCase()}`;
@@ -48,7 +50,7 @@ export async function registerPushToken(channels: PushChannel[] = []): Promise<P
           name: channel.name,
           importance: Notifications.AndroidImportance[channel.importance ?? 'MAX'],
           vibrationPattern: channel.vibrationPattern ?? [0, 400, 200, 400],
-          sound: 'default',
+          sound: channel.sound ?? 'default',
         });
       }
     }

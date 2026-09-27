@@ -166,7 +166,7 @@ test('Escala: paleta da marca, domínios e planos padrão', async () => {
   assert.equal(palette[500], '#2a78d6');
   assert.ok(isHexColor(palette[50]) && isHexColor(palette[900]));
   assert.notEqual(palette[50], palette[900]);
-  assert.equal(brandPalette('vermelho')[500], '#ff5a1f');
+  assert.equal(brandPalette('vermelho')[500], '#ff5a1a');
   assert.ok(isValidDomain('entregas.empresa.com.br'));
   assert.ok(!isValidDomain('https://empresa.com.br'));
   assert.ok(!isValidDomain('localhost'));

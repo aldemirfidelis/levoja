@@ -16,6 +16,8 @@ export const ICONS = {
   location: { ios: 'mappin.and.ellipse', android: 'location_on' },
   myLocation: { ios: 'location.fill', android: 'my_location' },
   navigation: { ios: 'location.north.line.fill', android: 'navigation' },
+  volume: { ios: 'speaker.wave.2.fill', android: 'volume_up' },
+  volumeOff: { ios: 'speaker.slash.fill', android: 'volume_off' },
   chevronRight: { ios: 'chevron.right', android: 'chevron_right' },
   close: { ios: 'xmark', android: 'close' },
   plus: { ios: 'plus', android: 'add' },
@@ -75,6 +77,14 @@ export const ICONS = {
   share: { ios: 'square.and.arrow.up', android: 'share' },
   trophy: { ios: 'trophy.fill', android: 'workspace_premium' },
   team: { ios: 'person.3.fill', android: 'groups' },
+  // Categorias do início (ícones dos segmentos) e avisos de demanda.
+  restaurant: { ios: 'fork.knife', android: 'restaurant' },
+  basket: { ios: 'basket.fill', android: 'shopping_basket' },
+  pharmacy: { ios: 'cross.case.fill', android: 'local_pharmacy' },
+  pet: { ios: 'pawprint.fill', android: 'pets' },
+  drink: { ios: 'cup.and.saucer.fill', android: 'local_cafe' },
+  tools: { ios: 'wrench.and.screwdriver.fill', android: 'build' },
+  flame: { ios: 'flame.fill', android: 'local_fire_department' },
 } satisfies Record<string, Exclude<SymbolViewProps['name'], string>>;
 
 export type IconName = keyof typeof ICONS;

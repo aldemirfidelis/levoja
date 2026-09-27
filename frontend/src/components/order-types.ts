@@ -3,6 +3,8 @@ import type { OrderStatus, PaymentMethod } from '@levoja/shared';
 export interface OrderItemView {
   id: string;
   name: string;
+  /** Foto principal do produto (null se o produto não tem foto ou foi excluído). */
+  imageUrl: string | null;
   quantity: number;
   unitPriceCents: number;
   totalCents: number;

@@ -35,8 +35,8 @@ export function CouponCard({ coupon, compact }: { coupon: AvailableCoupon; compa
   return (
     <Card onPress={onPress} style={compact ? { width: 240 } : undefined}>
       <Row gap={3} align="flex-start" style={{ opacity: locked ? 0.7 : 1 }}>
-        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: locked ? colors.surface2 : colors.brandSoft, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name={locked ? 'lock' : coupon.visibility === 'TIER' ? 'trophy' : 'coupon'} size={20} color={locked ? colors.muted : colors.brand} />
+        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: locked ? colors.surface2 : `${colors.success}1A`, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name={locked ? 'lock' : coupon.visibility === 'TIER' ? 'trophy' : 'coupon'} size={20} color={locked ? colors.muted : colors.success} />
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Text weight="700" numberOfLines={1}>
@@ -51,7 +51,7 @@ export function CouponCard({ coupon, compact }: { coupon: AvailableCoupon; compa
             </Text>
           ) : null}
           <Row gap={2} style={{ marginTop: space(1) }}>
-            <Badge label={coupon.code} tone={locked ? 'neutral' : 'brand'} />
+            <Badge label={coupon.code} tone={locked ? 'neutral' : 'success'} />
             {locked ? <Text variant="caption" tone="warning">{coupon.locked}</Text> : null}
           </Row>
         </View>
