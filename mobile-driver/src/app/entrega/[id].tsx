@@ -163,8 +163,10 @@ export default function DeliveryScreen() {
     <Screen refreshing={delivery.isRefetching} onRefresh={() => delivery.refetch()}>
       <RouterStack.Screen options={{ title: `Entrega ${data.code}` }} />
       {active ? <KeepAwake /> : null}
-      <Row justify="space-between">
-        <Text variant="title">{data.company?.tradeName ?? 'Entrega avulsa'}</Text>
+      <Row justify="space-between" align="flex-start" gap={3}>
+        <Text variant="title" numberOfLines={2} style={{ flex: 1 }}>
+          {data.company?.tradeName ?? 'Entrega avulsa'}
+        </Text>
         <Badge label={pending.length ? `${DELIVERY_STATUS_LABELS[status]} (pendente)` : DELIVERY_STATUS_LABELS[status]} tone={(status === 'DELIVERED' ? 'success' : status === 'CANCELED' || status === 'FAILED' ? 'danger' : 'brand') as Tone} />
       </Row>
       <Text weight="700" tone="success">

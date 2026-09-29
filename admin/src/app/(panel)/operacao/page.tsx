@@ -3,7 +3,7 @@
 import { Suspense, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { AlertOctagon, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { AlertOctagon, AlertTriangle, CheckCircle2, Motorbike, RefreshCw, Store } from 'lucide-react';
 import { DELIVERY_STATUS_LABELS, DeliveryStatus } from '@levoja/shared';
 import { useApi, useRealtime } from '@levoja/web-kit/client';
 import { Badge, Button, Card, DataTable, EmptyState, ErrorState, PageHeader, Select, Skeleton, StatCard, formatDateTime } from '@levoja/web-kit/ui';
@@ -36,7 +36,18 @@ interface Snapshot {
     supplyDemandRatio: number | null;
     ticketsSlaBreached: number;
   };
-  drivers: { id: string; name: string; availability: 'ONLINE' | 'BUSY'; lat: number | null; lng: number | null; lastLocationAt: string | null; activeDeliveries: number; stale: boolean }[];
+  drivers: {
+    id: string;
+    name: string;
+    availability: 'ONLINE' | 'BUSY';
+    lat: number | null;
+    lng: number | null;
+    lastLocationAt: string | null;
+    activeDeliveries: number;
+    phase: DriverPhase;
+    stale: boolean;
+  }[];
+  stores: { id: string; name: string; segment: string; lat: number; lng: number; openNow: boolean }[];
   deliveries: {
     id: string;
     code: string;
@@ -62,17 +73,49 @@ const SUPPLY: Record<Snapshot['supplyDemand'][number]['status'], { label: string
   surplus: { label: 'Sobra entregador', tone: 'success' },
 };
 
+type DriverPhase = 'idle' | 'pickup' | 'delivering';
+
+const GREEN = '#15803d';
+const RED = '#dc2626';
+const YELLOW = '#eab308';
+const GRAY = '#6b7280';
+
+/** Cor e nome de cada etapa do entregador (mapa e legenda). */
+const DRIVER_PHASES: Record<DriverPhase, { color: string; label: string }> = {
+  delivering: { color: GREEN, label: 'Em entrega' },
+  pickup: { color: YELLOW, label: 'Em coleta' },
+  idle: { color: RED, label: 'Parado' },
+};
+
 function Legend() {
-  const items: { color: string; label: string }[] = [
-    { color: '#FF5A1A', label: 'Entregador livre' },
-    { color: '#d97706', label: 'Entregador em entrega' },
-    { color: '#6b7280', label: 'Sem sinal' },
+  const icons: { icon: 'motorbike' | 'store'; color: string; label: string }[] = [
+    ...(['delivering', 'pickup', 'idle'] as const).map((phase) => ({ icon: 'motorbike' as const, color: DRIVER_PHASES[phase].color, label: `Entregador ${DRIVER_PHASES[phase].label.toLowerCase()}` })),
+    { icon: 'motorbike', color: GRAY, label: 'Entregador sem sinal' },
+    { icon: 'store', color: GREEN, label: 'Loja aberta' },
+    { icon: 'store', color: RED, label: 'Loja fechada' },
+  ];
+  const points: { color: string; label: string }[] = [
     { color: '#2563eb', label: 'Coleta aguardando entregador' },
     { color: '#d03b3b', label: 'Entrega atrasada' },
   ];
   return (
-    <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted" aria-label="Legenda do mapa">
-      {items.map((item) => (
+    <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted" aria-label="Legenda do mapa">
+      {icons.map((item) => {
+        const Icon = item.icon === 'motorbike' ? Motorbike : Store;
+        return (
+          <li key={item.label} className="flex items-center gap-1.5">
+            <span
+              className={`inline-flex h-5 w-5 items-center justify-center ring-2 ring-surface ${item.icon === 'motorbike' ? 'rounded-full' : 'rounded-md'}`}
+              style={{ background: item.color, color: item.color === YELLOW ? '#1f2937' : '#ffffff' }}
+              aria-hidden
+            >
+              <Icon className="h-3.5 w-3.5" strokeWidth={2.4} />
+            </span>
+            {item.label}
+          </li>
+        );
+      })}
+      {points.map((item) => (
         <li key={item.label} className="flex items-center gap-1.5">
           <span className="inline-block h-2.5 w-2.5 rounded-full ring-2 ring-surface" style={{ background: item.color }} aria-hidden />
           {item.label}
@@ -101,14 +144,26 @@ function ControlTower() {
   const markers = useMemo<MapMarker[]>(() => {
     if (!data) return [];
     const list: MapMarker[] = [];
+    for (const store of data.stores) {
+      list.push({
+        id: `store-${store.id}`,
+        lat: store.lat,
+        lng: store.lng,
+        icon: 'store',
+        color: store.openNow ? GREEN : RED,
+        label: `${store.name} (${store.segment}) · ${store.openNow ? 'aberta' : 'fechada'}`,
+      });
+    }
     for (const driver of data.drivers) {
       if (driver.lat == null || driver.lng == null) continue;
+      const phase = DRIVER_PHASES[driver.phase];
       list.push({
         id: `driver-${driver.id}`,
         lat: driver.lat,
         lng: driver.lng,
-        kind: driver.stale ? 'point' : driver.availability === 'BUSY' ? 'driver-busy' : 'driver',
-        label: `${driver.name}${driver.stale ? ' (sem sinal)' : driver.activeDeliveries ? ` · ${driver.activeDeliveries} entrega(s)` : ''}`,
+        icon: 'motorbike',
+        color: driver.stale ? GRAY : phase.color,
+        label: `${driver.name} · ${phase.label.toLowerCase()}${driver.activeDeliveries ? ` (${driver.activeDeliveries} entrega(s))` : ''}${driver.stale ? ' · sem sinal' : ''}`,
       });
     }
     for (const delivery of data.deliveries) {

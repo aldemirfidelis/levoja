@@ -56,17 +56,23 @@ export default function HistoryTab() {
       ListEmptyComponent={<EmptyState icon="history" title="Nenhuma entrega concluída" description="Suas entregas finalizadas aparecem aqui." />}
       renderItem={({ item }) => (
         <Card onPress={() => router.push(`/entrega/${item.id}`)}>
-          <Row justify="space-between">
-            <Text weight="700">
-              {item.company?.tradeName ?? 'Avulsa'} · {item.code}
-            </Text>
+          {/* Nome da loja e código encolhem (reticências); selo e valor ficam sempre inteiros dentro do card. */}
+          <Row justify="space-between" align="flex-start" gap={3}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text weight="700" numberOfLines={1}>
+                {item.company?.tradeName ?? 'Entrega avulsa'}
+              </Text>
+              <Text variant="caption" tone="muted" numberOfLines={1}>
+                Código {item.code}
+              </Text>
+            </View>
             <Badge label={DELIVERY_STATUS_LABELS[item.status]} tone={item.status === 'DELIVERED' ? 'success' : 'danger'} />
           </Row>
-          <Row justify="space-between" style={{ marginTop: 4 }}>
-            <Text variant="caption" tone="muted">
+          <Row justify="space-between" gap={3} style={{ marginTop: space(2) }}>
+            <Text variant="caption" tone="muted" numberOfLines={1} style={{ flex: 1 }}>
               {formatDateTime(item.deliveredAt ?? item.createdAt)} · {item.distanceKm.toLocaleString('pt-BR')} km
             </Text>
-            <Text weight="600" tone="success">
+            <Text weight="700" tone={item.status === 'DELIVERED' ? 'success' : 'muted'}>
               {item.status === 'DELIVERED' ? formatBRL(item.payoutCents + item.tipCents) : '—'}
             </Text>
           </Row>

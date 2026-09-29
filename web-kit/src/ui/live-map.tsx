@@ -12,7 +12,13 @@ export interface MapMarker {
   label?: string;
   /** Tipo visual do marcador. */
   kind?: 'pickup' | 'dropoff' | 'driver' | 'driver-busy' | 'point' | 'alert';
+  /** Ícone no lugar do ponto (moto: entregador; loja: estabelecimento), pintado com `color`. */
+  icon?: MapIcon;
+  /** Cor do ícone (#RRGGBB). */
+  color?: string;
 }
+
+export type MapIcon = 'motorbike' | 'store';
 
 const COLORS: Record<NonNullable<MapMarker['kind']>, string> = {
   pickup: '#2563eb',
@@ -22,6 +28,45 @@ const COLORS: Record<NonNullable<MapMarker['kind']>, string> = {
   point: '#6b7280',
   alert: '#d03b3b',
 };
+
+// Desenhos do Lucide (ISC): "motorbike" e "store", em grade 24×24.
+const GLYPHS: Record<MapIcon, string> = {
+  motorbike:
+    '<path d="m18 14-1-3"/><path d="m3 9 6 2a2 2 0 0 1 2-2h2a2 2 0 0 1 1.99 1.81"/><path d="M8 17h3a1 1 0 0 0 1-1 6 6 0 0 1 6-6 1 1 0 0 0 1-1v-.75A5 5 0 0 0 17 5"/><circle cx="19" cy="17" r="3"/><circle cx="5" cy="17" r="3"/>',
+  store:
+    '<path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"/><path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"/><path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"/>',
+};
+
+/** Traço do desenho: escuro sobre cores claras (ex.: amarelo), branco nas demais. */
+function inkFor(hex: string): string {
+  const channel = (offset: number) => {
+    const value = parseInt(hex.slice(offset, offset + 2), 16) / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+  return luminance > 0.23 ? '#1f2937' : '#ffffff';
+}
+
+/** Entregador: círculo centrado na posição. Loja: marcador com ponta na posição. */
+function iconHtml(icon: MapIcon, color: string): string {
+  const ink = inkFor(color);
+  const glyph = (x: number, y: number, scale: number) =>
+    `<g transform="translate(${x} ${y}) scale(${scale})" fill="none" stroke="${ink}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">${GLYPHS[icon]}</g>`;
+  const shadow = 'style="display:block;overflow:visible;filter:drop-shadow(0 1px 2px rgba(0,0,0,.45))"';
+  if (icon === 'motorbike') {
+    return `<svg width="32" height="32" viewBox="0 0 32 32" ${shadow}><circle cx="16" cy="16" r="14" fill="${color}" stroke="#fff" stroke-width="2"/>${glyph(6.5, 6.5, 0.79)}</svg>`;
+  }
+  return `<svg width="32" height="40" viewBox="0 0 32 40" ${shadow}><path d="M16 38 11 30H6a4 4 0 0 1-4-4V6a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4v20a4 4 0 0 1-4 4h-5z" fill="${color}" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>${glyph(7, 7, 0.75)}</svg>`;
+}
+
+const POINTS_PANE = 'lj-points';
+
+/** Texto da dica como nó de texto (nunca HTML montado com dados: nomes vêm de usuários e empresas). */
+function tooltipContent(label: string): HTMLElement {
+  const tip = document.createElement('span');
+  tip.textContent = label;
+  return tip;
+}
 
 /**
  * Mapa (Leaflet) com provedor de tiles configurável — NEXT_PUBLIC_MAP_TILES_URL
@@ -58,6 +103,8 @@ export function LiveMap({
         maxZoom: 19,
         attribution: process.env.NEXT_PUBLIC_MAP_ATTRIBUTION ?? '&copy; OpenStreetMap',
       }).addTo(map.current);
+      // Pontos acima dos ícones: a coleta aguardando fica visível sobre a loja de onde sai.
+      map.current.createPane(POINTS_PANE).style.zIndex = '620';
       layer.current = L.layerGroup().addTo(map.current);
       draw();
     });
@@ -75,15 +122,33 @@ export function LiveMap({
     layer.current.clearLayers();
     if (path && path.length > 1) L.polyline(path, { color: '#FF5A1A', weight: 4, opacity: 0.7 }).addTo(layer.current);
     for (const marker of markers) {
-      const color = COLORS[marker.kind ?? 'point'];
+      if (marker.icon) {
+        const color = marker.color && /^#[0-9a-f]{6}$/i.test(marker.color) ? marker.color : COLORS.point;
+        const moto = marker.icon === 'motorbike';
+        const pin = L.marker([marker.lat, marker.lng], {
+          icon: L.divIcon({
+            html: iconHtml(marker.icon, color),
+            className: 'lj-map-icon',
+            iconSize: moto ? [32, 32] : [32, 40],
+            iconAnchor: moto ? [16, 16] : [16, 38],
+            tooltipAnchor: moto ? [0, -16] : [0, -36],
+          }),
+          // Entregadores por cima das lojas; fora da navegação por teclado (o mapa é uma imagem).
+          zIndexOffset: moto ? 1000 : 0,
+          keyboard: false,
+        }).addTo(layer.current);
+        if (marker.label) pin.bindTooltip(tooltipContent(marker.label), { direction: 'top' });
+        continue;
+      }
       const circle = L.circleMarker([marker.lat, marker.lng], {
+        pane: POINTS_PANE,
         radius: marker.kind?.startsWith('driver') ? 9 : 7,
         color: '#ffffff',
         weight: 2,
-        fillColor: color,
+        fillColor: COLORS[marker.kind ?? 'point'],
         fillOpacity: 1,
       }).addTo(layer.current);
-      if (marker.label) circle.bindTooltip(marker.label);
+      if (marker.label) circle.bindTooltip(tooltipContent(marker.label));
     }
     const points: [number, number][] = [...markers.map((m) => [m.lat, m.lng] as [number, number]), ...(path ?? [])];
     if (fit && points.length && !fitted.current) {

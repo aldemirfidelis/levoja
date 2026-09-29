@@ -8,6 +8,7 @@ import { Prisma } from '../../generated/prisma/client';
 import type { DeliveryStatus } from '../../generated/prisma/enums';
 import { Period, periodRange, startOfLocalDay } from '../../common/time-range';
 import { localTime, utcTimestamp } from '../../common/sql';
+import { isWithinOpeningHours } from '../../common/opening-hours';
 import { ACTIVE_DELIVERY_STATUSES } from '../logistics/deliveries.service';
 
 export type HeatLayer = 'demand' | 'orders' | 'deliveries' | 'drivers';
@@ -42,6 +43,8 @@ export interface TowerAlert {
 export type TowerAlertSource = (tenantId: string) => Promise<TowerAlert[]>;
 
 const WAITING: DeliveryStatus[] = ['PENDING', 'SEARCHING_DRIVER'];
+/** Entrega aceita e ainda não retirada: o entregador está indo coletar (ou já na coleta). */
+const PICKUP_PHASE: DeliveryStatus[] = ['DRIVER_ASSIGNED', 'AT_PICKUP'];
 /** Tamanho da célula do mapa de calor em graus (~275 m, ~550 m e ~1,1 km no Brasil). */
 const CELL: Record<HeatPrecision, number> = { fine: 0.0025, medium: 0.005, coarse: 0.01 };
 const SAMPLE_MINUTES = 5;
@@ -101,7 +104,7 @@ export class OperationsService {
     const cityFilter: Prisma.DeliveryWhereInput = city ? { city: { equals: city, mode: 'insensitive' } } : {};
     const orderCityFilter: Prisma.OrderWhereInput = city ? { company: { address: { city: { equals: city, mode: 'insensitive' } } } } : {};
 
-    const [drivers, open, finishedToday, ordersByStatus, ordersLastHour, ordersToday, lateOrders, waitingAcceptance, ticketsBreached] = await Promise.all([
+    const [drivers, open, finishedToday, ordersByStatus, ordersLastHour, ordersToday, lateOrders, waitingAcceptance, ticketsBreached, companies] = await Promise.all([
       this.prisma.driver.findMany({
         where: { tenantId, availability: { in: ['ONLINE', 'BUSY'] } },
         select: {
@@ -113,6 +116,8 @@ export class OperationsService {
           onlineSince: true,
           user: { select: { name: true } },
           activeVehicle: { select: { type: true } },
+          // Sem o filtro de cidade: a etapa do entregador considera todas as entregas dele.
+          deliveries: { where: { status: { in: ACTIVE_DELIVERY_STATUSES } }, select: { status: true } },
         },
         take: 5000,
       }),
@@ -185,6 +190,20 @@ export class OperationsService {
         take: 100,
       }),
       this.prisma.supportTicket.count({ where: { tenantId, status: { in: ['OPEN', 'IN_PROGRESS', 'WAITING_REQUESTER'] }, slaBreachedAt: { not: null } } }),
+      this.prisma.company.findMany({
+        where: { tenantId, status: 'APPROVED', address: { lat: { not: null }, lng: { not: null }, ...(city ? { city: { equals: city, mode: 'insensitive' } } : {}) } },
+        select: {
+          id: true,
+          tradeName: true,
+          isOpen: true,
+          timezone: true,
+          openingHours: { select: { weekday: true, opensAt: true, closesAt: true } },
+          address: { select: { lat: true, lng: true } },
+          segment: { select: { name: true } },
+        },
+        orderBy: { tradeName: 'asc' },
+        take: 2000,
+      }),
     ]);
 
     // --- Entregadores -------------------------------------------------------
@@ -201,9 +220,25 @@ export class OperationsService {
       lastLocationAt: driver.lastLocationAt,
       onlineSince: driver.onlineSince,
       activeDeliveries: activeByDriver.get(driver.id) ?? 0,
+      // Com entregas das duas etapas (rota agrupada), a coleta pendente vem primeiro.
+      phase: driver.deliveries.some((delivery) => PICKUP_PHASE.includes(delivery.status))
+        ? ('pickup' as const)
+        : driver.deliveries.length
+          ? ('delivering' as const)
+          : ('idle' as const),
       stale: !driver.lastLocationAt || now.getTime() - driver.lastLocationAt.getTime() > freshMs,
     }));
     const driverById = new Map(driverViews.map((driver) => [driver.id, driver]));
+
+    // --- Lojas (aberta = recebendo pedidos e dentro do horário, como na vitrine) --
+    const stores = companies.map((company) => ({
+      id: company.id,
+      name: company.tradeName,
+      segment: company.segment.name,
+      lat: company.address!.lat!,
+      lng: company.address!.lng!,
+      openNow: company.isOpen && isWithinOpeningHours(company.openingHours, now, company.timezone),
+    }));
 
     // --- Entregas em aberto -------------------------------------------------
     const lateMs = ops.lateToleranceMinutes * 60_000;
@@ -360,6 +395,7 @@ export class OperationsService {
       timeZone: ops.timeZone,
       metrics,
       drivers: driverViews,
+      stores,
       deliveries: deliveryViews,
       lateOrders: lateOrders.map((order) => ({ id: order.id, number: order.number, status: order.status, company: order.company.tradeName, estimatedDeliveryAt: order.estimatedDeliveryAt })),
       supplyDemand,

@@ -256,8 +256,11 @@ export function Badge({ label, tone = 'neutral' }: { label: string; tone?: Tone 
   const colors = useColors();
   const color = toneColor(colors, tone);
   return (
-    <View style={{ alignSelf: 'flex-start', paddingHorizontal: space(2), paddingVertical: 2, borderRadius: radius.full, backgroundColor: `${color}22` }}>
-      <RNText style={[{ color, fontSize: 12 }, fontStyleFor('800')]}>{label}</RNText>
+    // flexShrink 0: numa linha com texto longo, quem encolhe é o texto — o selo fica inteiro dentro do card.
+    <View style={{ alignSelf: 'flex-start', flexShrink: 0, paddingHorizontal: space(2), paddingVertical: 2, borderRadius: radius.full, backgroundColor: `${color}22` }}>
+      <RNText numberOfLines={1} style={[{ color, fontSize: 12 }, fontStyleFor('800')]}>
+        {label}
+      </RNText>
     </View>
   );
 }
