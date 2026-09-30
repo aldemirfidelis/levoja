@@ -14,7 +14,7 @@ coverage/
 
 # local data
 .data/
-storage/
+/backend/storage/
 .test-storage/
 *.log
 
